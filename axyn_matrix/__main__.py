@@ -6,6 +6,7 @@ from nio import (
     AsyncClient,
     AsyncClientConfig,
     InviteMemberEvent,
+    JoinError,
     LocalProtocolError,
     LoginError,
     RoomMessageText,
@@ -35,7 +36,18 @@ async def create_client():
 
     # Set up event callbacks
     # client.add_event_callback(callbacks.message, (RoomMessageText,))
-    # client.add_event_callback(callbacks.invite, (InviteMemberEvent,))
+
+    async def invite_callback(room, event):
+        """Function called when an invite event is received."""
+
+        if event.state_key == client.user_id:
+            result = await client.join(room.room_id)
+            if type(result) == JoinError:
+                print("Failed to join room", room.room_id, "-", result.message)
+            else:
+                print("Joined room", room.room_id)
+
+    client.add_event_callback(invite_callback, InviteMemberEvent)
 
     return client
 
@@ -82,7 +94,7 @@ async def loop():
             pass
 
         except FailedLogin as message:
-            print("Failed to login:", message)
+            print("Failed to login -", message)
             reconnect = False
 
         finally:
