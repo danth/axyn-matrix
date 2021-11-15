@@ -1,0 +1,60 @@
+{
+  "nodes": {
+    "flipgenic": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1625500467,
+        "narHash": "sha256-yYRh/old4ZGznzP8wpxmHvbaHqXm4HqZfqDG/FTsDmA=",
+        "owner": "danth",
+        "repo": "flipgenic",
+        "rev": "1fc0a4b02a5dbfb13bf5d6d9e6206cf7b27851b8",
+        "type": "github"
+      },
+      "original": {
+        "owner": "danth",
+        "repo": "flipgenic",
+        "type": "github"
+      }
+    },
+    "nixpkgs": {
+      "locked": {
+        "lastModified": 1624271441,
+        "narHash": "sha256-26QNDCdRE5mPOWYJrPGpVzgrJ3ZxqvWOONfeMsjryz4=",
+        "owner": "NixOS",
+        "repo": "nixpkgs",
+        "rev": "7e567a3d092b7de69cdf5deaeb8d9526de230916",
+        "type": "github"
+      },
+      "original": {
+        "owner": "NixOS",
+        "repo": "nixpkgs",
+        "rev": "7e567a3d092b7de69cdf5deaeb8d9526de230916",
+        "type": "github"
+      }
+    },
+    "root": {
+      "inputs": {
+        "flipgenic": "flipgenic",
+        "nixpkgs": "nixpkgs",
+        "utils": "utils"
+      }
+    },
+    "utils": {
+      "locked": {
+        "lastModified": 1634851050,
+        "narHash": "sha256-N83GlSGPJJdcqhUxSCS/WwW5pksYf3VP1M13cDRTSVA=",
+        "owner": "numtide",
+        "repo": "flake-utils",
+        "rev": "c91f3de5adaf1de973b797ef7485e441a65b8935",
+        "type": "github"
+      },
+      "original": {
+        "owner": "numtide",
+        "repo": "flake-utils",
+        "type": "github"
+      }
+    }
+  },
+  "root": "root",
+  "version": 7
+}
