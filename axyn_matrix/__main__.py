@@ -2,6 +2,7 @@ import asyncio
 import os
 
 from aiohttp import ClientConnectionError, ServerDisconnectedError
+from flipgenic import Responder
 from nio import (
     AsyncClient,
     AsyncClientConfig,
@@ -9,7 +10,7 @@ from nio import (
     JoinError,
     LocalProtocolError,
     LoginError,
-    RoomMessageText,
+    RoomMessageFormatted,
 )
 
 
@@ -34,8 +35,35 @@ async def create_client():
         config=client_config,
     )
 
+    print("Loading Flipgenic responder")
+
+    flipgenic_path = os.path.join(os.environ["AXYN_MATRIX_STORE_PATH"], "flipgenic")
+    responder = Responder(flipgenic_path, "en_core_web_md")
+
     # Set up event callbacks
-    # client.add_event_callback(callbacks.message, (RoomMessageText,))
+
+    async def message_callback(room, event):
+        """Function called when a message event is received."""
+
+        # Ignore Axyn's own messages
+        if event.sender == client.user_id:
+            return
+
+        response, distance = responder.get_response(event.body)
+
+        content = {
+            "msgtype": "m.text",
+            "body": response.text,
+        }
+
+        await client.room_send(
+            room.room_id,
+            "m.room.message",
+            content,
+            ignore_unverified_devices=True
+        )
+
+    client.add_event_callback(message_callback, RoomMessageFormatted)
 
     async def invite_callback(room, event):
         """Function called when an invite event is received."""
