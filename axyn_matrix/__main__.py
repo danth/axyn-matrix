@@ -1,5 +1,6 @@
 import asyncio
 import os
+import shutil
 
 from aiohttp import ClientConnectionError, ServerDisconnectedError
 from flipgenic import Responder
@@ -38,6 +39,8 @@ async def create_client():
     print("Loading Flipgenic responder")
 
     flipgenic_path = os.path.join(os.environ["AXYN_MATRIX_STORE_PATH"], "flipgenic")
+    if not os.path.exists(flipgenic_path):
+        shutil.copytree("@INITIAL_RESPONDER@", flipgenic_path)
     responder = Responder(flipgenic_path, "en_core_web_md")
 
     # Set up event callbacks
@@ -54,6 +57,8 @@ async def create_client():
         content = {
             "msgtype": "m.text",
             "body": response.text,
+            "format": "org.matrix.custom.html",
+            "formatted_body": f"{response.text}<br><sub>{response.metadata}</sub>",
         }
 
         await client.room_send(

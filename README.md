@@ -7,6 +7,12 @@
 
 # Axyn for Matrix
 
+## Data sources
+
+These are used to build Axyn's initial bank of responses.
+
+- [Cornell Movie Dialogs Corpus](https://www.cs.cornell.edu/~cristian/Cornell_Movie-Dialogs_Corpus.html)
+
 ## Environment Variables
 
 ### `AXYN_MATRIX_STORE_PATH`
