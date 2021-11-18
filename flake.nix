@@ -53,21 +53,9 @@
           propagatedBuildInputs = [ ngt spacy sqlalchemy ];
         };
 
-        cornell-movie-dialogs-corpus = pkgs.fetchzip {
-          url = "https://www.cs.cornell.edu/~cristian/data/cornell_movie_dialogs_corpus.zip";
-          sha256 = "ZholC/oCvWl0CqyT5vSDMual0wQ6EwQN5VCJUH0/hb8=";
-          stripRoot = false;
-          extraPostFetch = ''
-            mv $out/cornell\ movie-dialogs\ corpus/* $out
-            rm -r $out/__MACOSX $out/cornell\ movie-dialogs\ corpus
-          '';
+        initial-responder = pkgs.callPackage ./initial_responder {
+          inherit en-core-web-md flipgenic;
         };
-
-        initial-responder = pkgs.runCommand "axyn-initial-responder" {
-          python = pkgs.python3.withPackages (ps: [ en-core-web-md flipgenic ]);
-        } ''
-          $python/bin/python ${./initial_responder.py} ${cornell-movie-dialogs-corpus} $out
-        '';
 
         axyn-matrix = buildPythonApplication rec {
           name = "axyn-matrix";
