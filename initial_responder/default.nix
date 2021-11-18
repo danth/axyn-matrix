@@ -11,10 +11,12 @@ let
   addSource = database: sourcePath:
     let source = callPackage sourcePath { };
     in runCommand "flipgenic-${source.name}" { } ''
-      ${if isNull database then "" else "cp -r ${database} $out"}
+      ${if isNull database then "" else
+        "cp --no-preserve=mode,ownership -r ${database} $out"}
       ${pythonPackages}/bin/python ${source.buildScript} ${source.input} $out
     '';
 
 in lib.foldl addSource null [
   ./cornell_movie_dialogs_corpus
+  ./craigslist_bargains
 ]

@@ -12,6 +12,7 @@
 These are used to build Axyn's initial bank of responses.
 
 - [Cornell Movie Dialogs Corpus](https://www.cs.cornell.edu/~cristian/Cornell_Movie-Dialogs_Corpus.html)
+- [Craigslist Bargains](https://worksheets.codalab.org/worksheets/0x453913e76b65495d8b9730d41c7e0a0c/)
 
 ## Environment Variables
 
