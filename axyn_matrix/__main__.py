@@ -52,6 +52,11 @@ async def create_client():
         if event.sender == client.user_id:
             return
 
+        asyncio.create_task(
+            # Send a read receipt for this message
+            client.room_read_markers(room.room_id, event.event_id, event.event_id)
+        )
+
         response, distance = responder.get_response(event.body)
 
         content = {
