@@ -4,18 +4,12 @@ import shutil
 
 from aiohttp import ClientConnectionError, ServerDisconnectedError
 from flipgenic import Responder
-from nio import (
-    AsyncClient,
-    AsyncClientConfig,
-    InviteMemberEvent,
-    JoinError,
-    LocalProtocolError,
-    LoginError,
-    RoomMessageFormatted,
-)
+from nio import AsyncClient, AsyncClientConfig, LoginError
+
+from axyn_matrix.callbacks import attach_callbacks
 
 
-async def create_client():
+def create_client():
     """Set up the the Matrix client."""
 
     client_config = AsyncClientConfig(
@@ -36,56 +30,30 @@ async def create_client():
         config=client_config,
     )
 
+    return client
+
+
+def load_responder():
+    """Load the Flipgenic responder responsible for selection Axyn's messages."""
+
     print("Loading Flipgenic responder")
 
     flipgenic_path = os.path.join(os.environ["AXYN_MATRIX_STORE_PATH"], "flipgenic")
+
     if not os.path.exists(flipgenic_path):
         shutil.copytree("@INITIAL_RESPONDER@", flipgenic_path)
-    responder = Responder(flipgenic_path, "en_core_web_md")
 
-    # Set up event callbacks
+    return Responder(flipgenic_path, "en_core_web_md")
 
-    async def message_callback(room, event):
-        """Function called when a message event is received."""
 
-        # Ignore Axyn's own messages
-        if event.sender == client.user_id:
-            return
+def setup_client_responder():
+    """Create and link the Matrix client and Flipgenic responder."""
 
-        asyncio.create_task(
-            # Send a read receipt for this message
-            client.room_read_markers(room.room_id, event.event_id, event.event_id)
-        )
+    client = create_client()
 
-        response, distance = responder.get_response(event.body)
+    responder = load_responder()
 
-        content = {
-            "msgtype": "m.text",
-            "body": response.text,
-            "format": "org.matrix.custom.html",
-            "formatted_body": f"{response.text}<br><sub>{response.metadata}</sub>",
-        }
-
-        await client.room_send(
-            room.room_id,
-            "m.room.message",
-            content,
-            ignore_unverified_devices=True
-        )
-
-    client.add_event_callback(message_callback, RoomMessageFormatted)
-
-    async def invite_callback(room, event):
-        """Function called when an invite event is received."""
-
-        if event.state_key == client.user_id:
-            result = await client.join(room.room_id)
-            if type(result) == JoinError:
-                print("Failed to join room", room.room_id, "-", result.message)
-            else:
-                print("Joined room", room.room_id)
-
-    client.add_event_callback(invite_callback, InviteMemberEvent)
+    attach_callbacks(client, responder)
 
     return client
 
@@ -96,6 +64,7 @@ class FailedLogin(Exception):
 
 async def connect(client):
     """Log in and sync with the homeserver."""
+
     login_response = await client.login(
         password=os.environ["AXYN_MATRIX_USER_PASSWORD"],
         device_name=os.environ["AXYN_MATRIX_DEVICE_NAME"],
@@ -110,7 +79,7 @@ async def connect(client):
 
 
 async def loop():
-    client = await create_client()
+    client = setup_client_responder()
 
     # Keep trying to reconnect on failure
     reconnect = True
