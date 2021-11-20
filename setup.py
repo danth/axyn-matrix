@@ -34,8 +34,12 @@ setup(
         "Programming Language :: Python :: 3.9",
     ],
     packages=find_packages(),
+    package_data={
+        "axyn_matrix": ["images/*.png"],
+    },
     python_requires=">=3.6,<4",
     install_requires=[
+        "aiofiles >=0.6,<1",
         "flipgenic >=2.2,<3",
         "matrix-nio[e2e] >=0.18,<1",
     ],

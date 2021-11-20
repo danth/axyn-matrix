@@ -2,9 +2,10 @@ import asyncio
 import os
 import shutil
 
+import aiofiles
 from aiohttp import ClientConnectionError, ServerDisconnectedError
 from flipgenic import Responder
-from nio import AsyncClient, AsyncClientConfig, LoginError
+from nio import AsyncClient, AsyncClientConfig, LoginError,  ProfileGetAvatarError, UploadResponse
 
 from axyn_matrix.callbacks import attach_callbacks
 
@@ -58,6 +59,30 @@ def setup_client_responder():
     return client
 
 
+async def set_avatar(client):
+    """Set Axyn's profile picture to axyn-icon.png, if one is not already set."""
+
+    current_avatar = await client.get_avatar()
+    if type(current_avatar) != ProfileGetAvatarError:
+        # A profile picture is already set
+        return
+
+    AVATAR = os.path.join(os.path.dirname(__file__), "images/axyn-icon.png")
+
+    # Upload the image to the homeserver
+    avatar_stat = os.stat(AVATAR)
+    async with aiofiles.open(AVATAR, "rb") as avatar:
+        upload_response, _ = await client.upload(
+            avatar,
+            content_type="image/png",
+            filename="axyn-icon.png",
+            filesize=avatar_stat.st_size
+        )
+
+    # Set the uploaded image as our avatar
+    if type(upload_response) == UploadResponse:
+        await client.set_avatar(response.content_uri)
+
 class FailedLogin(Exception):
     """Exception raised when the login credentials are incorrect."""
 
@@ -74,6 +99,9 @@ async def connect(client):
         raise FailedLogin(login_response.message)
 
     print(f"Logged in as {client.user_id}")
+
+    asyncio.create_task(client.set_displayname("Axyn"))
+    asyncio.create_task(set_avatar(client))
 
     await client.sync_forever(timeout=30000, full_state=True, set_presence="online")
 

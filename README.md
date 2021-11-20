@@ -1,6 +1,6 @@
 <p align="center">
   <img
-    src="images/axyn.png"
+    src="axyn_matrix/images/axyn.png"
     alt="Axyn logo"
   />
 </p>

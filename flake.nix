@@ -61,6 +61,7 @@
           name = "axyn-matrix";
           src = ./.;
           propagatedBuildInputs = [
+            aiofiles
             en-core-web-md
             flipgenic
             matrix-nio
