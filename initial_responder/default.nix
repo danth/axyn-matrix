@@ -19,4 +19,5 @@ let
 in lib.foldl addSource null [
   ./cornell_movie_dialogs_corpus
   ./craigslist_bargains
+  ./shakespeare
 ]
