@@ -1,6 +1,6 @@
 import asyncio
 import os
-import shutil
+import subprocess
 
 import aiofiles
 from aiohttp import ClientConnectionError, ServerDisconnectedError
@@ -42,7 +42,13 @@ def load_responder():
     flipgenic_path = os.path.join(os.environ["AXYN_MATRIX_STORE_PATH"], "flipgenic")
 
     if not os.path.exists(flipgenic_path):
-        shutil.copytree("@INITIAL_RESPONDER@", flipgenic_path)
+        subprocess.check_call([
+            "cp",
+            "--no-preserve=mode,ownership",
+            "-r",
+            "@INITIAL_RESPONDER@",
+            flipgenic_path,
+        ])
 
     return Responder(flipgenic_path, "en_core_web_md")
 
