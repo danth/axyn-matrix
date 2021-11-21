@@ -87,7 +87,7 @@ async def set_avatar(client):
 
     # Set the uploaded image as our avatar
     if type(upload_response) == UploadResponse:
-        await client.set_avatar(response.content_uri)
+        await client.set_avatar(upload_response.content_uri)
 
 class FailedLogin(Exception):
     """Exception raised when the login credentials are incorrect."""
