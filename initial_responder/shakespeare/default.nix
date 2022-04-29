@@ -6,6 +6,6 @@
   input = fetchurl {
     name = "shakespeare-plays.json";
     url = "https://bridgesdata.herokuapp.com/api/shakespeare/plays";
-    sha256 = "tt16c120Ty2KZ/3T/NCX3K/oOyY7YRMwmsBASiEbEJ8=";
+    sha256 = "k6jxkOPeE3+qXVuPCPhweZMssrddvKnnjZKXCheurFo=";
   };
 }
