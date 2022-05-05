@@ -14,25 +14,42 @@
       let
         pkgs = nixpkgs.legacyPackages.${system};
 
-        ngt = buildPythonPackage rec {
-          pname = "ngt";
-          version = "v1.12.3";
-          src = pkgs.fetchFromGitHub {
-            owner = "yahoojapan";
-            repo = "NGT";
-            rev = version;
-            sha256 = "d2DUnuSlnMhd/QDJZRJLXQvcat37dEM+s9Ci4KXxxvQ=";
-          };
+        ngtVersion = "1.14.4";
+        ngtSrc = pkgs.fetchFromGitHub {
+          owner = "yahoojapan";
+          repo = "NGT";
+          rev = "v${ngtVersion}";
+          sha256 = "Wa15AdLLzOL7qqCR2Bt+0i0YIgd6qKBmtEU9Q9/uiQI=";
+        };
+
+        ngt = pkgs.stdenv.mkDerivation rec {
+          pname = "NGT";
+          version = ngtVersion;
+          src = ngtSrc;
+
+          nativeBuildInputs = with pkgs; [ cmake ];
+          buildInputs = with pkgs; [ llvmPackages.openmp ];
+
+          __AVX2__ = 0;
+        };
+
+        ngtpy = buildPythonPackage rec {
+          pname = "NGTpy";
+          version = ngtVersion;
+          src = ngtSrc;
+
           postPatch = ''
             substituteInPlace python/src/ngtpy.cpp \
               --replace "NGT_VERSION" '"${version}"'
           '';
+
           preConfigure = ''
             export HOME=$PWD
-            export LD_LIBRARY_PATH=${pkgs.ngt}/lib
+            export LD_LIBRARY_PATH=${ngt}/lib
             cd python
           '';
-          buildInputs = [ pkgs.ngt ];
+
+          buildInputs = [ ngt ];
           propagatedBuildInputs = [ numpy pybind11 ];
         };
 
@@ -50,7 +67,7 @@
         flipgenic = buildPythonPackage rec {
           name = "flipgenic";
           src = inputs.flipgenic;
-          propagatedBuildInputs = [ ngt spacy sqlalchemy ];
+          propagatedBuildInputs = [ ngtpy spacy sqlalchemy ];
         };
 
         initial-responder = pkgs.callPackage ./initial_responder {
