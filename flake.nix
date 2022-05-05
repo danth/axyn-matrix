@@ -1,6 +1,6 @@
 {
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/7e567a3d092b7de69cdf5deaeb8d9526de230916";
+    nixpkgs.url = "github:NixOS/nixpkgs";
     utils.url = "github:numtide/flake-utils";
     flipgenic = {
       url = "github:danth/flipgenic";
@@ -38,11 +38,11 @@
 
         en-core-web-md = buildPythonPackage rec {
           pname = "en-core-web-md";
-          version = "3.0.0";
+          version = "3.3.0";
           src = pkgs.fetchzip {
             url =
-              "https://github.com/explosion/spacy-models/releases/download/en_core_web_md-3.0.0/en_core_web_md-3.0.0.tar.gz";
-            sha256 = "4UrUhHNVLHxbOdm3BIIetv4Pk86GzFoKoSnlvLFqesI=";
+              "https://github.com/explosion/spacy-models/releases/download/en_core_web_md-3.3.0/en_core_web_md-3.3.0.tar.gz";
+            sha256 = "sy+vff9STk6vBlWybdbsVL9+orANuUNJjma1ar+u30s=";
           };
           propagatedBuildInputs = [ spacy ];
         };
