@@ -7,6 +7,13 @@
 
 # Axyn for Matrix
 
+Axyn is a chatbot which learns from old messages - in addition to a bank of
+quotes from movies and other sources - and tries to reply to what you send it.
+
+![An example conversation showing Axyn's behaviour.](./example.jpg)
+
+Axyn never writes anything original.
+
 ## Data sources
 
 These are used to build Axyn's initial bank of responses.
