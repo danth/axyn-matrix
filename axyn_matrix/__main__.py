@@ -39,18 +39,8 @@ def load_responder():
 
     print("Loading Flipgenic responder")
 
-    flipgenic_path = os.path.join(os.environ["AXYN_MATRIX_STORE_PATH"], "flipgenic")
-
-    if not os.path.exists(flipgenic_path):
-        subprocess.check_call([
-            "cp",
-            "--no-preserve=mode,ownership",
-            "-r",
-            "@INITIAL_RESPONDER@",
-            flipgenic_path,
-        ])
-
-    return Responder(flipgenic_path, "en_core_web_md")
+    # The files for this responder will be read-only
+    return Responder("@INITIAL_RESPONDER@", "en_core_web_md")
 
 
 def setup_client_responder():
