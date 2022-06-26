@@ -1,6 +1,6 @@
 import random
 
-from nio import InviteMemberEvent, RoomMessageFormatted
+from nio import InviteMemberEvent, RoomMessageFormatted, JoinError
 
 
 def response_probability(uncertainty, member_count):
