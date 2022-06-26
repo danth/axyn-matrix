@@ -40,6 +40,7 @@ def attach_callbacks(client, responders):
 
         # First try a response from the learned responses
         response, uncertainty = responders[1].get_response(event.body)
+        metadata_is_user_id = True
 
         # Now try a response from the initial dataset
         initial_response, initial_uncertainty = responders[0].get_response(event.body)
@@ -47,17 +48,29 @@ def attach_callbacks(client, responders):
         if initial_uncertainty < uncertainty:
             response = initial_response
             uncertainty = initial_uncertainty
+            metadata_is_user_id = False
 
         if random.random() > response_probability(uncertainty, room.member_count):
             # Send a read receipt
             await client.room_read_markers(room.room_id, event.event_id, event.event_id)
         else:
             # Send a reply (sending a message also updates the read receipt)
+
+            formatted_body = f"{response.text}<br><sub>"
+            if metadata_is_user_id:
+                # Create a mention pill
+                link = "https://matrix.to/#/" + response.metadata
+                text = response.metadata.split(":")[0]
+                formatted_body += f"<a href=\"{link}\">{text}</a>"
+            else:
+                formatted_body += response.metadata
+            formatted_body += "</sub>"
+
             content = {
                 "msgtype": "m.text",
                 "body": response.text,
                 "format": "org.matrix.custom.html",
-                "formatted_body": f"{response.text}<br><sub>{response.metadata}</sub>",
+                "formatted_body": formatted_body
             }
 
             await client.room_send(
