@@ -6,6 +6,7 @@ import aiofiles
 from aiohttp import ClientConnectionError, ServerDisconnectedError
 from flipgenic import Responder
 from nio import AsyncClient, AsyncClientConfig, LoginError,  ProfileGetAvatarError, UploadResponse
+import spacy
 
 from axyn_matrix.callbacks import attach_callbacks
 
@@ -34,13 +35,20 @@ def create_client():
     return client
 
 
-def load_responder():
-    """Load the Flipgenic responder responsible for selection Axyn's messages."""
+def load_responders():
+    """Load the Flipgenic responders responsible for selection Axyn's messages."""
 
-    print("Loading Flipgenic responder")
+    print("Loading SpaCy model")
+    model = spacy.load("en_core_web_md", exclude=["ner"])
 
-    # The files for this responder will be read-only
-    return Responder("@INITIAL_RESPONDER@", "en_core_web_md")
+    print("Loading Flipgenic responders")
+
+    read_only = Responder("@INITIAL_RESPONDER@", model)
+
+    writeable_path = os.path.join(os.environ["AXYN_MATRIX_STORE_PATH"], "responder")
+    writeable = Responder(writeable_path, model)
+
+    return (read_only, writeable)
 
 
 def setup_client_responder():
@@ -48,9 +56,9 @@ def setup_client_responder():
 
     client = create_client()
 
-    responder = load_responder()
+    responders = load_responders()
 
-    attach_callbacks(client, responder)
+    attach_callbacks(client, responders)
 
     return client
 
