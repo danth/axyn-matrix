@@ -108,12 +108,12 @@ async def learn_from_message(responders, client, room, event):
 
                 # Don't learn from consecutive messages from the same person
                 if event_before.sender != event.sender:
-
                     responders[1].learn_response(
                         get_body(event_before),
                         Message(get_body(event), event.sender)
                     )
-                    break
+ 
+                break
 
 
 def attach_callbacks(client, responders):
