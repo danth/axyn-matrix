@@ -79,11 +79,14 @@ async def learn_from_message(responders, client, room, event):
         for event_before in context.events_before:
             if isinstance(event_before, RoomMessageFormatted):
 
-                responders[1].learn_response(
-                    event_before.body,
-                    Message(event.body, event.sender)
-                )
-                break
+                # Don't learn from consecutive messages from the same person
+                if event_before.sender != event.sender:
+
+                    responders[1].learn_response(
+                        event_before.body,
+                        Message(event.body, event.sender)
+                    )
+                    break
 
 
 def attach_callbacks(client, responders):
