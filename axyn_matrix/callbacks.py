@@ -1,17 +1,42 @@
 import random
 
+from bs4 import BeautifulSoup
 from flipgenic import Message
 from nio import InviteMemberEvent, RoomMessageFormatted, JoinError, RoomContextResponse
+
+
+def get_body(event):
+    """
+    Extract a cleaned message body from an event.
+
+    This may still contain some HTML tags.
+    """
+
+    if "com.github.danth.axyn.body" in event.source["content"]:
+        # This event contains a body which is already cleaned for learning
+        # (Most likely it was sent by Axyn itself)
+        return event.source["content"]["com.github.danth.axyn.body"]
+
+    if event.formatted_body and event.format == "org.matrix.custom.html":
+        soup = BeautifulSoup(event.formatted_body, 'html.parser')
+        # Remove any <mx-reply> tags
+        for reply_tag in soup.find_all("mx-reply"):
+            reply_tag.decompose()
+        return str(soup)
+
+    return event.body
 
 
 def generate_response(responders, event):
     """Use Flipgenic to select a response to the given event."""
 
+    body = get_body(event)
+
     # First try a response from the learned responses
-    response, uncertainty = responders[1].get_response(event.body)
+    response, uncertainty = responders[1].get_response(body)
 
     # Now try a response from the initial dataset
-    initial_response, initial_uncertainty = responders[0].get_response(event.body)
+    initial_response, initial_uncertainty = responders[0].get_response(body)
 
     # Use the more certain response
     if uncertainty < initial_uncertainty:
@@ -47,8 +72,9 @@ def response_probability(uncertainty, member_count):
 def format_reply(response, metadata_is_user_id=False):
     """Convert a Flipgenic response into a Matrix event."""
 
-    formatted_body = f"{response.text}<br><sub>"
+    unformatted_body = response.text + "\n" + response.metadata
 
+    formatted_body = f"{response.text}<br><sub>"
     if metadata_is_user_id:
         # Create a mention pill
         link = "https://matrix.to/#/" + response.metadata
@@ -56,14 +82,15 @@ def format_reply(response, metadata_is_user_id=False):
         formatted_body += f"<a href=\"{link}\">{text}</a>"
     else:
         formatted_body += response.metadata
-
     formatted_body += "</sub>"
 
     return {
         "msgtype": "m.text",
-        "body": response.text,
+        "body": unformatted_body,
         "format": "org.matrix.custom.html",
-        "formatted_body": formatted_body
+        "formatted_body": formatted_body,
+        # Store the raw text so that it can be retrieved for future learning
+        "com.github.danth.axyn.body": response.text
     }
 
 
@@ -83,8 +110,8 @@ async def learn_from_message(responders, client, room, event):
                 if event_before.sender != event.sender:
 
                     responders[1].learn_response(
-                        event_before.body,
-                        Message(event.body, event.sender)
+                        get_body(event_before),
+                        Message(get_body(event), event.sender)
                     )
                     break
 

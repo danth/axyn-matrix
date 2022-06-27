@@ -79,6 +79,7 @@
           src = ./.;
           propagatedBuildInputs = [
             aiofiles
+            beautifulsoup4
             en-core-web-md
             flipgenic
             matrix-nio
