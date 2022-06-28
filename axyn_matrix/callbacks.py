@@ -124,6 +124,9 @@ async def learn_from_message(responders, client, room, event):
     """Add a recieved message to the writeable Flipgenic responder."""
 
     previous_message = await find_previous_message(client, room, event)
+    
+    if previous_message is None:
+        return
 
     # Don't learn from consecutive messages from the same person
     if previous_message.sender != event.sender:
