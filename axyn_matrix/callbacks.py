@@ -2,7 +2,7 @@ import random
 
 from bs4 import BeautifulSoup
 from flipgenic import Message
-from nio import InviteMemberEvent, RoomMessageFormatted, JoinError, RoomContextResponse
+from nio import InviteMemberEvent, RoomMessageFormatted, JoinError, RoomContextResponse, RoomGetEventResponse
 
 
 def get_body(event):
@@ -94,8 +94,19 @@ def format_reply(response, metadata_is_user_id=False):
     }
 
 
-async def learn_from_message(responders, client, room, event):
-    """Add a recieved message to the writeable Flipgenic responder."""
+async def find_previous_message(client, room, event):
+    """Find the most recent message before a given event."""
+
+    try:
+        response = await client.room_get_event(
+            room.room_id,
+            event.source["content"]["m.relates_to"]["m.in_reply_to"]["event_id"]
+        )
+        if isinstance(response, RoomGetEventResponse):
+            return response.event
+
+    except KeyError:
+        pass
 
     # Retrieve a few events which happened immediately before the given event
     context = await client.room_context(room.room_id, event.event_id)
@@ -106,14 +117,20 @@ async def learn_from_message(responders, client, room, event):
         for event_before in context.events_before:
             if isinstance(event_before, RoomMessageFormatted):
 
-                # Don't learn from consecutive messages from the same person
-                if event_before.sender != event.sender:
-                    responders[1].learn_response(
-                        get_body(event_before),
-                        Message(get_body(event), event.sender)
-                    )
- 
-                break
+                return event_before
+
+
+async def learn_from_message(responders, client, room, event):
+    """Add a recieved message to the writeable Flipgenic responder."""
+
+    previous_message = await find_previous_message(client, room, event)
+
+    # Don't learn from consecutive messages from the same person
+    if previous_message.sender != event.sender:
+        responders[1].learn_response(
+            get_body(previous_message),
+            Message(get_body(event), event.sender)
+        )
 
 
 def attach_callbacks(client, responders):
