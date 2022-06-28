@@ -39,7 +39,7 @@ def generate_response(responders, event):
     initial_response, initial_uncertainty = responders[0].get_response(body)
 
     # Use the more certain response
-    if uncertainty < initial_uncertainty:
+    if uncertainty <= initial_uncertainty:
         return (response, uncertainty, True)
     else:
         return (initial_response, initial_uncertainty, False)
