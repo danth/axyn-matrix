@@ -12,10 +12,12 @@ def get_body(event):
     This may still contain some HTML tags.
     """
 
-    if "com.github.danth.axyn.body" in event.source["content"]:
-        # This event contains a body which is already cleaned for learning
-        # (Most likely it was sent by Axyn itself)
-        return event.source["content"]["com.github.danth.axyn.body"]
+    try:
+        # The event may contain a body which is already cleaned
+        # (Most likely this was sent by Axyn itself)
+        return event.source["content"]["com.github.danth.axyn.response"]["text"]
+    except KeyError:
+        pass
 
     if event.formatted_body and event.format == "org.matrix.custom.html":
         soup = BeautifulSoup(event.formatted_body, 'html.parser')
@@ -69,7 +71,7 @@ def response_probability(uncertainty, member_count):
     return probability
 
 
-def format_reply(response, metadata_is_user_id=False):
+def format_reply(response, uncertainty, metadata_is_user_id=False):
     """Convert a Flipgenic response into a Matrix event."""
 
     unformatted_body = response.text + "\n" + response.metadata
@@ -90,7 +92,11 @@ def format_reply(response, metadata_is_user_id=False):
         "format": "org.matrix.custom.html",
         "formatted_body": formatted_body,
         # Store the raw text so that it can be retrieved for future learning
-        "com.github.danth.axyn.body": response.text
+        "com.github.danth.axyn.response": {
+            "text": response.text,
+            "source": response.metadata,
+            "uncertainty": uncertainty
+        }
     }
 
 
@@ -154,7 +160,7 @@ def attach_callbacks(client, responders):
             await client.room_send(
                 room.room_id,
                 "m.room.message",
-                format_reply(response, metadata_is_user_id),
+                format_reply(response, uncertainty, metadata_is_user_id),
                 ignore_unverified_devices=True
             )
 
