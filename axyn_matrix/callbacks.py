@@ -1,3 +1,4 @@
+import json
 import random
 
 from bs4 import BeautifulSoup
@@ -42,9 +43,9 @@ def generate_response(responders, event):
 
     # Use the more certain response
     if uncertainty <= initial_uncertainty:
-        return (response, uncertainty, True)
+        return (response, uncertainty)
     else:
-        return (initial_response, initial_uncertainty, False)
+        return (initial_response, initial_uncertainty)
 
 
 def response_probability(uncertainty, member_count):
@@ -71,20 +72,69 @@ def response_probability(uncertainty, member_count):
     return probability
 
 
-def format_reply(response, uncertainty, metadata_is_user_id=False):
+def format_source(source):
+    """
+    Convert the metadata of a Flipgenic response to readable text.
+
+    The metadata will not be decoded from JSON, so this should be done before
+    calling this function.
+
+    This returns a tuple where the first element is HTML, and the second
+    element is plain text.
+    """
+
+    formatted_elements = []
+    unformatted_elements = []
+
+    for element in source:
+
+        if element["type"] == "matrix_user":
+            user_id = element["id"]
+
+            # TODO: Query the actual display name from Matrix
+            display_name = user_id.split(":")[0]
+
+            formatted_elements.append(
+                f"<a href=\"https://matrix.to/#/{user_id}\">{display_name}</a>",
+            )
+            unformatted_elements.append(display_name)
+
+        elif element["type"] in ["character", "author"]:
+            formatted_elements.append(element["name"])
+            unformatted_elements.append(element["name"])
+
+        elif element["type"] == "title":
+            formatted_elements.append(element["title"])
+            unformatted_elements.append(element["title"])
+
+        elif element["type"] == "dataset":
+            if "link" in element:
+                formatted_elements.append(
+                    "<a href=\"" + element["link"] + "\">" + element["name"] + "</a>"
+                )
+            else:
+                formatted_elements.append(element["name"])
+
+            unformatted_elements.append(element["name"])
+
+        else:
+            raise ValueError("Unknown source element: " + element["type"])
+
+    return (
+        " &#x22c5; ".join(formatted_elements),
+        " \u22c5 ".join(unformatted_elements)
+    )
+
+
+def format_reply(response, uncertainty):
     """Convert a Flipgenic response into a Matrix event."""
 
-    unformatted_body = response.text + "\n" + response.metadata
+    source = json.loads(response.metadata)
 
-    formatted_body = f"{response.text}<br><sub>"
-    if metadata_is_user_id:
-        # Create a mention pill
-        link = "https://matrix.to/#/" + response.metadata
-        text = response.metadata.split(":")[0]
-        formatted_body += f"<a href=\"{link}\">{text}</a>"
-    else:
-        formatted_body += response.metadata
-    formatted_body += "</sub>"
+    (formatted_source, unformatted_source) = format_source(source)
+
+    formatted_body = f"{response.text}<br><sub>{formatted_source}</sub>"
+    unformatted_body = response.text + "\n" + unformatted_source
 
     return {
         "msgtype": "m.text",
@@ -94,7 +144,7 @@ def format_reply(response, uncertainty, metadata_is_user_id=False):
         # Store the raw text so that it can be retrieved for future learning
         "com.github.danth.axyn.response": {
             "text": response.text,
-            "source": response.metadata,
+            "source": source,
             "uncertainty": uncertainty
         }
     }
@@ -136,9 +186,16 @@ async def learn_from_message(responders, client, room, event):
 
     # Don't learn from consecutive messages from the same person
     if previous_message.sender != event.sender:
+        source = json.dumps([
+            {
+                "type": "matrix_user",
+                "id": event.sender
+            }
+        ])
+
         responders[1].learn_response(
             get_body(previous_message),
-            Message(get_body(event), event.sender)
+            Message(get_body(event), source)
         )
 
 
@@ -152,7 +209,7 @@ def attach_callbacks(client, responders):
         if event.sender == client.user_id:
             return
 
-        (response, uncertainty, metadata_is_user_id) = generate_response(responders, event)
+        (response, uncertainty) = generate_response(responders, event)
 
         if random.random() > response_probability(uncertainty, room.member_count):
             await client.room_read_markers(room.room_id, event.event_id, event.event_id)
@@ -160,7 +217,7 @@ def attach_callbacks(client, responders):
             await client.room_send(
                 room.room_id,
                 "m.room.message",
-                format_reply(response, uncertainty, metadata_is_user_id),
+                format_reply(response, uncertainty),
                 ignore_unverified_devices=True
             )
 

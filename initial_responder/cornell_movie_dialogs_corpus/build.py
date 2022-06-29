@@ -1,5 +1,6 @@
 import ast
 import sys
+import json
 from os import path
 from flipgenic import Responder, Message
 
@@ -16,7 +17,21 @@ with open(path.join(sys.argv[1], "movie_characters_metadata.txt"), "rb") as file
         character_name = row_decoded[1].title()
         movie_title = row_decoded[3].title()
 
-        characters[character_id] = f"{character_name}, {movie_title}"
+        characters[character_id] = json.dumps([
+            {
+                "type": "character",
+                "name": character_name
+            },
+            {
+                "type": "title",
+                "title": movie_title
+            },
+            {
+                "type": "dataset",
+                "name": "Cornell Movie Dialogs Corpus",
+                "link": "https://www.cs.cornell.edu/~cristian/Cornell_Movie-Dialogs_Corpus.html"
+            }
+        ])
 
 print("Loading lines")
 with open(path.join(sys.argv[1], "movie_lines.txt"), "rb") as file:

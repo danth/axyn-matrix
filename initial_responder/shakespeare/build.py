@@ -24,7 +24,25 @@ def format_line(line):
     return re.sub(whitespace_regex, " ", line_without_stage_directions)
 
 def format_character(character, title):
-    return f"{character.title()}, {title}"
+    return json.dumps([
+        {
+            "type": "character",
+            "name": character.title()
+        },
+        {
+            "type": "title",
+            "title": title
+        },
+        {
+            "type": "author",
+            "name": "William Shakespeare"
+        },
+        {
+            "type": "dataset",
+            "name": "BRIDGES Data",
+            "link": "https://bridgesdata.herokuapp.com/api/datasets/shakespeare"
+        }
+    ])
 
 with open(sys.argv[1]) as file:
     for play in json.load(file)["data"]:
