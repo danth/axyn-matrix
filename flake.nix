@@ -24,6 +24,13 @@
           sha256 = "5hoiV2Aiould/WZctpkLzQ99PUzp+pkFQCqOiZcrT4g=";
         };
 
+        glove-twitter-200d = pkgs.runCommand
+          "glove-twitter-27B-200d"
+          { preferLocalBuild = true; }
+          ''
+            cp ${glove-twitter}/glove.twitter.27B.200d.txt $out
+          '';
+
         cargoArtifacts = craneLib.buildDepsOnly {
           src = ./.;
         };
@@ -31,7 +38,7 @@
         package = craneLib.buildPackage {
           src = ./.;
           inherit cargoArtifacts;
-          WORD2VEC_DATA = "${glove-twitter}/glove.twitter.27B.200d.txt";
+          WORD2VEC_DATA = "${glove-twitter-200d}";
         };
 
       in {
