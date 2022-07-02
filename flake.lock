@@ -1,21 +1,5 @@
 {
   "nodes": {
-    "flipgenic": {
-      "flake": false,
-      "locked": {
-        "lastModified": 1625500467,
-        "narHash": "sha256-yYRh/old4ZGznzP8wpxmHvbaHqXm4HqZfqDG/FTsDmA=",
-        "owner": "danth",
-        "repo": "flipgenic",
-        "rev": "1fc0a4b02a5dbfb13bf5d6d9e6206cf7b27851b8",
-        "type": "github"
-      },
-      "original": {
-        "owner": "danth",
-        "repo": "flipgenic",
-        "type": "github"
-      }
-    },
     "nixpkgs": {
       "locked": {
         "lastModified": 1651771646,
@@ -33,7 +17,6 @@
     },
     "root": {
       "inputs": {
-        "flipgenic": "flipgenic",
         "nixpkgs": "nixpkgs",
         "utils": "utils"
       }
