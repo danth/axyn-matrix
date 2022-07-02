@@ -16,20 +16,23 @@
       let
         pkgs = import nixpkgs { inherit system; };
         craneLib = crane.lib.${system};
-
-        nonRustDependencies = {
-          buildInputs = with pkgs; [ ];
-          nativeBuildInputs = with pkgs; [ ];
+        
+        glove-twitter = pkgs.fetchzip {
+          name = "glove-twitter-27B";
+          url = "https://nlp.stanford.edu/data/wordvecs/glove.twitter.27B.zip";
+          stripRoot = false;
+          sha256 = "5hoiV2Aiould/WZctpkLzQ99PUzp+pkFQCqOiZcrT4g=";
         };
 
-        cargoArtifacts = craneLib.buildDepsOnly ({
+        cargoArtifacts = craneLib.buildDepsOnly {
           src = ./.;
-        } // nonRustDependencies);
+        };
 
-        package = craneLib.buildPackage ({
+        package = craneLib.buildPackage {
           src = ./.;
           inherit cargoArtifacts;
-        } // nonRustDependencies);
+          WORD2VEC_DATA = "${glove-twitter}/glove.twitter.27B.200d.txt";
+        };
 
       in {
         packages.default = package;
