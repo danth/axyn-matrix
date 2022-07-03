@@ -31,8 +31,8 @@ impl fmt::Display for VectorLoadError {
     }
 }
 
-type Vector = Vec<f32>;
-type Vectors = HashMap<String, Vector>;
+pub type Vector = Vec<f64>;
+pub type Vectors = HashMap<String, Vector>;
 
 pub fn load_vectors() -> Result<Vectors, VectorLoadError> {
     let mut vectors = HashMap::new();
