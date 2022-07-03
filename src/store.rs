@@ -11,6 +11,9 @@ extern crate sled;
 use sled::Db;
 extern crate serde_cbor;
 
+extern crate rand;
+use rand::seq::SliceRandom;
+
 use crate::vectors::Vector;
 
 #[derive(Debug)]
@@ -105,6 +108,9 @@ impl ResponseStore {
         let responses = responses.ok_or(Error::MissingResponses)?;
         let responses: Vec<String> = serde_cbor::from_slice(&responses)?;
 
-        Ok(responses[0].clone())
+        let response = responses.choose(&mut rand::thread_rng());
+        let response = response.ok_or(Error::MissingResponses)?;
+
+        Ok(response.to_string())
     }
 }
