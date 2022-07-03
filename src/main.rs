@@ -6,7 +6,7 @@ use crate::vectors::load_vectors;
 
 fn main() {
     println!("Loading database");
-    let database = ResponseStore::load().expect("Loading database");
+    let mut database = ResponseStore::load().expect("Loading database");
 
     println!("Loading vectors");
     let vectors = load_vectors().expect("Error loading vectors");

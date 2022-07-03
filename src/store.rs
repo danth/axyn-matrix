@@ -51,20 +51,28 @@ impl Metric<Vector> for Euclidean {
     }
 }
 
-type ResponseHnsw = Hnsw<Euclidean, Vector, Pcg64, 12, 24>;
-type ResponseSearcher = Searcher<u64>;
-
 pub struct ResponseStore {
-    database: Db
+    database: Db,
+    hnsw: Hnsw<Euclidean, Vector, Pcg64, 12, 24>,
+    searcher: Searcher<u64>
 }
 impl ResponseStore {
     pub fn load() -> Result<Self, Error> {
-        Ok(ResponseStore {
-            database: sled::open("kv_store")?
-        })
+        let database = sled::open("kv_store")?;
+
+        let mut hnsw = Hnsw::new(Euclidean);
+        let mut searcher = Searcher::default();
+
+        for pair in database.iter() {
+            let (serialized_vector, _) = pair?;
+            let vector = serde_cbor::from_slice(&serialized_vector)?;
+            hnsw.insert(vector, &mut searcher);
+        }
+
+        Ok(ResponseStore { database, hnsw, searcher })
     }
 
-    pub fn insert(&self, vector: &Vector, response: &str) -> Result<(), Error> {
+    pub fn insert(&mut self, vector: &Vector, response: &str) -> Result<(), Error> {
         let serialized_vector = serde_cbor::to_vec(vector)?;
 
         let mut responses = match self.database.get(&serialized_vector)? {
@@ -77,33 +85,20 @@ impl ResponseStore {
         let serialized_responses = serde_cbor::to_vec(&responses)?;
         self.database.insert(serialized_vector, serialized_responses)?;
 
+        self.hnsw.insert(vector.clone(), &mut self.searcher);
+
         Ok(())
     }
 
-    fn build_hnsw(&self) -> Result<(ResponseHnsw, ResponseSearcher), Error> {
-        let mut searcher = Searcher::default();
-        let mut hnsw = Hnsw::new(Euclidean);
-
-        for pair in self.database.iter() {
-            let (serialized_vector, _) = pair?;
-            let vector = serde_cbor::from_slice(&serialized_vector)?;
-            hnsw.insert(vector, &mut searcher);
-        }
-
-        Ok((hnsw, searcher))
-    }
-
-    pub fn respond(&self, vector: &Vector) -> Result<String, Error> {
-        let (hnsw, mut searcher) = self.build_hnsw()?;
-
+    pub fn respond(&mut self, vector: &Vector) -> Result<String, Error> {
         let mut neighbours = [Neighbor {
             index: !0,
             distance: !0
         }];
 
-        hnsw.nearest(&vector, 24, &mut searcher, &mut neighbours);
+        self.hnsw.nearest(&vector, 24, &mut self.searcher, &mut neighbours);
 
-        let vector = hnsw.feature(neighbours[0].index);
+        let vector = self.hnsw.feature(neighbours[0].index);
         let serialized_vector = serde_cbor::to_vec(&vector)?;
 
         let responses = self.database.get(&serialized_vector)?;
