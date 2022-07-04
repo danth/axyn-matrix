@@ -60,12 +60,36 @@ pub fn load_vectors() -> Result<Vectors, VectorLoadError> {
     Ok(vectors)
 }
 
-fn add_vectors(a: Vector, b: Vector) -> Vector {
-    let mut result = Vec::new();
-    for ((result_ref, a_value), b_value) in result.iter_mut().zip(&a).zip(&b) {
-        *result_ref = a_value + b_value;
+fn add_vectors(a: &mut Vector, b: &Vector) {
+    for (a_value, b_value) in a.iter_mut().zip(b) {
+        *a_value = *a_value + b_value;
     }
-    result
+}
+
+fn sum_vectors(vectors: &Vec<Vector>) -> Option<Vector> {
+    let mut iterator = vectors.iter();
+
+    let head = iterator.next()?;
+    let mut result = head.clone();
+
+    for tail in iterator {
+        add_vectors(&mut result, tail);
+    }
+
+    Some(result)
+}
+
+fn divide_vector(vector: &mut Vector, scalar: f64) {
+    for value in vector.iter_mut() {
+        *value = *value / scalar;
+    }
+}
+
+fn mean_vectors(vectors: &Vec<Vector>) -> Option<Vector> {
+    let mut total = sum_vectors(vectors)?;
+    let count = vectors.len() as f64;
+    divide_vector(&mut total, count);
+    Some(total)
 }
 
 pub fn utterance_to_vector(vectors: &Vectors, utterance: &str) -> Option<Vector> {
@@ -79,9 +103,5 @@ pub fn utterance_to_vector(vectors: &Vectors, utterance: &str) -> Option<Vector>
         }
     }
 
-    let total: Vector = results.iter().cloned().reduce(add_vectors)?;
-    let count = results.len() as f64;
-    let mean: Vector = total.iter().cloned().map(|element| element / count).collect();
-
-    Some(mean)
+    mean_vectors(&results)
 }
