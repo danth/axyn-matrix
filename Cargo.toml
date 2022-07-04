@@ -15,3 +15,9 @@ space = "^0.17"  # Must be the same version of Space as used by HNSW
 
 # Randomisation
 rand = "^0.8"
+
+# Matrix client
+anyhow = "^1.0"
+matrix-sdk = "^0.5"
+matrix-sdk-sled = "^0.1"
+tokio = { version = "^1.19", features = ["full"] }

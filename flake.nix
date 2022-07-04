@@ -33,6 +33,7 @@
 
         cargoArtifacts = craneLib.buildDepsOnly {
           src = ./.;
+          buildInputs = with pkgs; [ pkg-config openssl.dev ];
         };
 
         package = craneLib.buildPackage {
