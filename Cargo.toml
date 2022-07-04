@@ -5,6 +5,7 @@ edition = "2021"
 
 [dependencies]
 # Data storage
+dirs = "^4.0"
 sled = "^0.34"
 serde_cbor = "^0.11"
 

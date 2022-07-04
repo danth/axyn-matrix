@@ -1,5 +1,7 @@
 use std::fmt;
 
+extern crate dirs;
+
 extern crate hnsw;
 use hnsw::{Hnsw, Searcher};
 extern crate rand_pcg;
@@ -74,7 +76,9 @@ impl ResponseStore {
         let vectors = load_vectors()?;
 
         println!("Opening database");
-        let database = sled::open("kv_store")?;
+        let mut path = dirs::home_dir().expect("Finding home directory");
+        path.push("responses");
+        let database = sled::open(path)?;
 
         println!("Preparing HNSW");
         let mut hnsw = Hnsw::new(Euclidean);

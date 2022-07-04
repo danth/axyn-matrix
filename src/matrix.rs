@@ -1,3 +1,5 @@
+extern crate dirs;
+
 extern crate matrix_sdk;
 use matrix_sdk::Client;
 use matrix_sdk::config::SyncSettings;
@@ -46,7 +48,9 @@ pub async fn login_and_sync(
     password: &str,
     device_id: &str
 ) -> anyhow::Result<()> {
-    let state_store = StateStore::open_with_path("matrix_state")?;
+    let mut path = dirs::home_dir().expect("Finding home directory");
+    // matrix-sdk creates its own subdirectory
+    let state_store = StateStore::open_with_path(path)?;
 
     let client = Client::builder()
         .homeserver_url(homeserver_url)
