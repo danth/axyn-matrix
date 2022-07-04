@@ -35,6 +35,8 @@ pub type Vector = Vec<f64>;
 pub type Vectors = HashMap<String, Vector>;
 
 pub fn load_vectors() -> Result<Vectors, VectorLoadError> {
+    println!("Loading vectors");
+
     let mut vectors = HashMap::new();
 
     let file = File::open(env!("WORD2VEC_DATA"))?;
@@ -56,4 +58,30 @@ pub fn load_vectors() -> Result<Vectors, VectorLoadError> {
     // TODO: Ensure that all vectors are the same size
 
     Ok(vectors)
+}
+
+fn add_vectors(a: Vector, b: Vector) -> Vector {
+    let mut result = Vec::new();
+    for ((result_ref, a_value), b_value) in result.iter_mut().zip(&a).zip(&b) {
+        *result_ref = a_value + b_value;
+    }
+    result
+}
+
+pub fn utterance_to_vector(vectors: &Vectors, utterance: &str) -> Option<Vector> {
+    let mut results: Vec<Vector> = Vec::new();
+
+    // TODO: Tokenize properly
+    for word in utterance.split(" ") {
+        let word = word.to_lowercase();
+        if let Some(vector) = vectors.get(&word) {
+            results.push(vector.clone());
+        }
+    }
+
+    let total: Vector = results.iter().cloned().reduce(add_vectors)?;
+    let count = results.len() as f64;
+    let mean: Vector = total.iter().cloned().map(|element| element / count).collect();
+
+    Some(mean)
 }
