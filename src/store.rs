@@ -4,8 +4,6 @@ extern crate dirs;
 
 extern crate hnsw;
 use hnsw::{Hnsw, Searcher};
-extern crate rand_pcg;
-use rand_pcg::Pcg64;
 extern crate space;
 use space::{Metric, Neighbor};
 
@@ -15,6 +13,7 @@ extern crate serde_cbor;
 
 extern crate rand;
 use rand::seq::SliceRandom;
+use rand::rngs::StdRng;
 
 use crate::vectors::{Vector, Vectors, load_vectors, VectorLoadError, utterance_to_vector};
 
@@ -68,7 +67,7 @@ impl Metric<Vector> for Euclidean {
 pub struct ResponseStore {
     vectors: Vectors,
     database: Db,
-    hnsw: Hnsw<Euclidean, Vector, Pcg64, 12, 24>,
+    hnsw: Hnsw<Euclidean, Vector, StdRng, 12, 24>,
     searcher: Searcher<u64>
 }
 impl ResponseStore {
