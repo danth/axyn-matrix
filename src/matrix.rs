@@ -7,7 +7,7 @@ use matrix_sdk::room::Room;
 use matrix_sdk::ruma::events::room::member::StrippedRoomMemberEvent;
 
 extern crate matrix_sdk_sled;
-use matrix_sdk_sled::StateStore;
+use matrix_sdk_sled::make_store_config;
 
 extern crate tokio;
 use tokio::time::{sleep, Duration};
@@ -48,13 +48,12 @@ pub async fn login_and_sync(
     password: &str,
     device_id: &str
 ) -> anyhow::Result<()> {
-    let mut path = dirs::home_dir().expect("Finding home directory");
-    // matrix-sdk creates its own subdirectory
-    let state_store = StateStore::open_with_path(path)?;
+    let path = dirs::home_dir().expect("Finding home directory");
+    let store_config = make_store_config(path, None)?;
 
     let client = Client::builder()
         .homeserver_url(homeserver_url)
-        .state_store(Box::new(state_store))
+        .store_config(store_config)
         .build().await?;
 
     client.login(username, password, Some(device_id), Some("Axyn")).await?;
