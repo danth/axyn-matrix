@@ -71,7 +71,7 @@ impl Metric<Vector> for Euclidean {
 
 #[derive(Clone)]
 pub struct ResponseStore {
-    vectors: Vectors,
+    vectors: Arc<Vectors>,
     database: Db,
     hnsw_lock: Arc<RwLock<Hnsw<Euclidean, Vector, StdRng, 12, 24>>>,
     searcher_lock: Arc<RwLock<Searcher<u64>>>
@@ -79,6 +79,7 @@ pub struct ResponseStore {
 impl ResponseStore {
     pub fn load() -> Result<Self, Error> {
         let vectors = load_vectors()?;
+        let vectors_arc = Arc::new(vectors);
 
         println!("Opening database");
         let mut path = dirs::home_dir().expect("Finding home directory");
@@ -98,7 +99,7 @@ impl ResponseStore {
         let hnsw_lock = Arc::new(RwLock::new(hnsw));
         let searcher_lock = Arc::new(RwLock::new(searcher));
 
-        Ok(ResponseStore { vectors, database, hnsw_lock, searcher_lock })
+        Ok(ResponseStore { vectors: vectors_arc, database, hnsw_lock, searcher_lock })
     }
 
     pub fn insert(&self, prompt: &str, response: Body) -> Result<(), Error> {
