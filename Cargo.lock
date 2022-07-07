@@ -139,6 +139,7 @@ dependencies = [
  "matrix-sdk",
  "matrix-sdk-sled",
  "rand 0.8.5",
+ "serde",
  "serde_cbor",
  "sled",
  "space",
