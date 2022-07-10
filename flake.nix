@@ -34,7 +34,7 @@
         package = craneLib.buildPackage {
           src = ./.;
           inherit cargoArtifacts;
-          WORD2VEC_DATA = fasttext-wiki-news-subword.out;
+          WORD2VEC_DATA = "${fasttext-wiki-news-subword}/wiki-news-300d-1M-subword.vec";
         };
 
       in {
