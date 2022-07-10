@@ -107,15 +107,17 @@ impl ResponseStore {
             .ok_or(Error::NoPromptVector)?;
         let serialized_vector = serde_cbor::to_vec(&vector)?;
 
-        let mut responses = match self.database.get(&serialized_vector)? {
-            Some(r) => (serde_cbor::from_slice::<Vec<Body>>(&r)?).clone(),
-            None => Vec::new()
-        };
+        self.database.fetch_and_update(serialized_vector, |serialized_responses| {
+            let mut responses = match serialized_responses {
+                Some(r) => serde_cbor::from_slice::<Vec<Body>>(&r).expect("Deserializing responses"),
+                None => Vec::new()
+            };
 
-        responses.push(response);
+            responses.push(response.clone());
 
-        let serialized_responses = serde_cbor::to_vec(&responses)?;
-        self.database.insert(serialized_vector, serialized_responses)?;
+            let serialized_responses = serde_cbor::to_vec(&responses).expect("Serializing responses");
+            Some(serialized_responses)
+        });
 
         let mut hnsw = self.hnsw_lock.write().unwrap();
         let mut searcher = self.searcher_lock.write().unwrap();
