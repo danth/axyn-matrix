@@ -1,15 +1,20 @@
 extern crate dirs;
 
+extern crate if_chain;
+use if_chain::if_chain;
+
 extern crate matrix_sdk;
 use matrix_sdk::Client;
 use matrix_sdk::config::SyncSettings;
 use matrix_sdk::event_handler::Ctx;
-use matrix_sdk::room::Room;
+use matrix_sdk::room::{ Joined, Room };
+use matrix_sdk::ruma::events::{ AnyRoomEvent, AnyMessageLikeEvent, MessageLikeEvent };
 use matrix_sdk::ruma::events::room::member::StrippedRoomMemberEvent;
 use matrix_sdk::ruma::events::room::message::{
-    FormattedBody, MessageFormat, MessageType,
-    OriginalSyncRoomMessageEvent, RoomMessageEventContent, TextMessageEventContent
+    FormattedBody, MessageFormat, MessageType, OriginalSyncRoomMessageEvent, Relation,
+    RoomMessageEventContent, TextMessageEventContent
 };
+use matrix_sdk::ruma::serde::Raw;
 
 extern crate matrix_sdk_sled;
 use matrix_sdk_sled::make_store_config;
@@ -21,6 +26,7 @@ extern crate tokio;
 use tokio::time::{sleep, Duration};
 
 use crate::store::ResponseStore;
+use crate::matrix_api::get_events_before;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Body {
@@ -28,8 +34,8 @@ pub struct Body {
     html: Option<String>
 }
 
-fn get_body(event: OriginalSyncRoomMessageEvent) -> Option<Body> {
-    match event.content.msgtype {
+fn get_body(event: &OriginalSyncRoomMessageEvent) -> Option<Body> {
+    match &event.content.msgtype {
         MessageType::Text(TextMessageEventContent {
             formatted: Some(FormattedBody {
                 format: MessageFormat::Html,
@@ -38,12 +44,65 @@ fn get_body(event: OriginalSyncRoomMessageEvent) -> Option<Body> {
             body,
             ..
         })
-            => Some(Body { plain: body, html: Some(html) }),
+            => Some(Body {
+                plain: body.to_string(),
+                html: Some(html.to_string())
+            }),
 
         MessageType::Text(TextMessageEventContent { body, .. })
-            => Some(Body { plain: body, html: None }),
+            => Some(Body {
+                plain: body.to_string(),
+                html: None
+            }),
 
         _ => None
+    }
+}
+
+fn get_body_from_raw(raw: &Raw<AnyRoomEvent>) -> Option<Body> {
+    if_chain! {
+        if let Ok(event) = raw.deserialize();
+        if let AnyRoomEvent::MessageLike(event) = event;
+        if let AnyMessageLikeEvent::RoomMessage(event) = event;
+        if let MessageLikeEvent::Original(event) = event;
+        then { get_body(&event.into()) }
+        else { None }
+    }
+}
+
+async fn get_previous_body(
+    event: &OriginalSyncRoomMessageEvent,
+    client: &Client,
+    room: &Joined
+) -> Result<Option<Body>, matrix_sdk::Error> {
+    // Look for explicit replies first
+    if let Some(Relation::Reply{ in_reply_to }) = &event.content.relates_to {
+        let previous_event = room.event(&in_reply_to.event_id).await?;
+        if let Some(previous_body) = get_body_from_raw(&previous_event.event) {
+            return Ok(Some(previous_body));
+        }
+    }
+
+    // Fall back to chronological order
+    let events_before = get_events_before(event, client, room).await?;
+    // We must check each event until we find one which is a text message
+    for previous_event in events_before.iter() {
+        if let Some(previous_body) = get_body_from_raw(&previous_event.event) {
+            return Ok(Some(previous_body));
+        }
+    }
+
+    Ok(None)
+}
+
+async fn send_response(body: &Body, database: &ResponseStore, room: &Joined) {
+    if let Ok(response) = database.respond(&body.plain) {
+        let response_content = match response.html {
+            Some(html) => RoomMessageEventContent::text_html(response.plain, html),
+            None => RoomMessageEventContent::text_plain(response.plain)
+        };
+
+        room.send(response_content, None).await.expect("Sending response");
     }
 }
 
@@ -57,15 +116,13 @@ async fn process_message(
     if event.sender == client.user_id().await.expect("Retrieving own user ID") { return; }
 
     if let Room::Joined(room) = room {
-        if let Some(body) = get_body(event) {
-            // TODO: Handle response errors
-            if let Ok(response) = database.respond(&body.plain) {
-                let response_content = match response.html {
-                    Some(html) => RoomMessageEventContent::text_html(response.plain, html),
-                    None => RoomMessageEventContent::text_plain(response.plain)
-                };
+        if let Some(body) = get_body(&event) {
+            send_response(&body, &database, &room).await;
 
-                room.send(response_content, None).await.expect("Sending response");
+            let previous_body = get_previous_body(&event, &client, &room)
+                                    .await.expect("Getting previous message");
+            if let Some(previous_body) = previous_body {
+                database.insert(&body.plain, previous_body).expect("Learning response");
             }
         }
     }
@@ -116,7 +173,6 @@ pub async fn login_and_sync(
         .build().await?;
 
     let database = ResponseStore::load().expect("Loading store");
-    database.insert("fish", Body { plain: "Today's fish is trout á la créme".to_string(), html: None });
     client.register_event_handler_context(database);
 
     client.login(username, password, Some(device_id), Some("Axyn")).await?;

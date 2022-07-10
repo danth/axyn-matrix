@@ -1,9 +1,9 @@
 mod matrix;
-use crate::matrix::login_and_sync;
-
+mod matrix_api;
 mod store;
-
 mod vectors;
+
+use crate::matrix::login_and_sync;
 
 use std::env;
 use std::process::exit;
