@@ -16,7 +16,7 @@ extern crate rand;
 use rand::seq::SliceRandom;
 use rand::rngs::StdRng;
 
-use crate::matrix::Body;
+use crate::matrix_body::Body;
 use crate::vectors::{Vector, Vectors, load_vectors, VectorLoadError, utterance_to_vector};
 
 #[derive(Debug)]

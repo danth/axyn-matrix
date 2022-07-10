@@ -1,9 +1,10 @@
-mod matrix;
 mod matrix_api;
+mod matrix_body;
+mod matrix_event_handlers;
 mod store;
 mod vectors;
 
-use crate::matrix::login_and_sync;
+use crate::matrix_event_handlers::login_and_sync;
 
 use std::env;
 use std::process::exit;

@@ -1,99 +1,21 @@
 extern crate dirs;
 
-extern crate if_chain;
-use if_chain::if_chain;
-
 extern crate matrix_sdk;
 use matrix_sdk::Client;
 use matrix_sdk::config::SyncSettings;
 use matrix_sdk::event_handler::Ctx;
 use matrix_sdk::room::{ Joined, Room };
-use matrix_sdk::ruma::events::{ AnyRoomEvent, AnyMessageLikeEvent, MessageLikeEvent };
 use matrix_sdk::ruma::events::room::member::StrippedRoomMemberEvent;
-use matrix_sdk::ruma::events::room::message::{
-    FormattedBody, MessageFormat, MessageType, OriginalSyncRoomMessageEvent, Relation,
-    RoomMessageEventContent, TextMessageEventContent
-};
-use matrix_sdk::ruma::serde::Raw;
+use matrix_sdk::ruma::events::room::message::{ OriginalSyncRoomMessageEvent, RoomMessageEventContent };
 
 extern crate matrix_sdk_sled;
 use matrix_sdk_sled::make_store_config;
-
-extern crate serde;
-use serde::{Serialize, Deserialize};
 
 extern crate tokio;
 use tokio::time::{sleep, Duration};
 
 use crate::store::ResponseStore;
-use crate::matrix_api::get_events_before;
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct Body {
-    plain: String,
-    html: Option<String>
-}
-
-fn get_body(event: &OriginalSyncRoomMessageEvent) -> Option<Body> {
-    match &event.content.msgtype {
-        MessageType::Text(TextMessageEventContent {
-            formatted: Some(FormattedBody {
-                format: MessageFormat::Html,
-                body: html
-            }),
-            body,
-            ..
-        })
-            => Some(Body {
-                plain: body.to_string(),
-                html: Some(html.to_string())
-            }),
-
-        MessageType::Text(TextMessageEventContent { body, .. })
-            => Some(Body {
-                plain: body.to_string(),
-                html: None
-            }),
-
-        _ => None
-    }
-}
-
-fn get_body_from_raw(raw: &Raw<AnyRoomEvent>) -> Option<Body> {
-    if_chain! {
-        if let Ok(event) = raw.deserialize();
-        if let AnyRoomEvent::MessageLike(event) = event;
-        if let AnyMessageLikeEvent::RoomMessage(event) = event;
-        if let MessageLikeEvent::Original(event) = event;
-        then { get_body(&event.into()) }
-        else { None }
-    }
-}
-
-async fn get_previous_body(
-    event: &OriginalSyncRoomMessageEvent,
-    client: &Client,
-    room: &Joined
-) -> Result<Option<Body>, matrix_sdk::Error> {
-    // Look for explicit replies first
-    if let Some(Relation::Reply{ in_reply_to }) = &event.content.relates_to {
-        let previous_event = room.event(&in_reply_to.event_id).await?;
-        if let Some(previous_body) = get_body_from_raw(&previous_event.event) {
-            return Ok(Some(previous_body));
-        }
-    }
-
-    // Fall back to chronological order
-    let events_before = get_events_before(event, client, room).await?;
-    // We must check each event until we find one which is a text message
-    for previous_event in events_before.iter() {
-        if let Some(previous_body) = get_body_from_raw(&previous_event.event) {
-            return Ok(Some(previous_body));
-        }
-    }
-
-    Ok(None)
-}
+use crate::matrix_body::{ Body, get_body_from_event, get_previous_body };
 
 async fn send_response(body: &Body, database: &ResponseStore, room: &Joined) {
     if let Ok(response) = database.respond(&body.plain) {
@@ -116,7 +38,7 @@ async fn process_message(
     if event.sender == client.user_id().await.expect("Retrieving own user ID") { return; }
 
     if let Room::Joined(room) = room {
-        if let Some(body) = get_body(&event) {
+        if let Some(body) = get_body_from_event(&event) {
             send_response(&body, &database, &room).await;
 
             let previous_body = get_previous_body(&event, &client, &room)
