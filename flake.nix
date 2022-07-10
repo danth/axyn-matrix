@@ -19,20 +19,12 @@
       let
         pkgs = import nixpkgs { inherit system; };
         craneLib = crane.lib.${system};
-        
-        glove-twitter = pkgs.fetchzip {
-          name = "glove-twitter-27B";
-          url = "https://nlp.stanford.edu/data/wordvecs/glove.twitter.27B.zip";
-          stripRoot = false;
-          sha256 = "5hoiV2Aiould/WZctpkLzQ99PUzp+pkFQCqOiZcrT4g=";
-        };
 
-        glove-twitter-200d = pkgs.runCommand
-          "glove-twitter-27B-200d"
-          { preferLocalBuild = true; }
-          ''
-            cp ${glove-twitter}/glove.twitter.27B.200d.txt $out
-          '';
+        fasttext-wiki-news-subword = pkgs.fetchzip {
+          name = "wiki-news-300d-1M-subword.vec";
+          url = "https://dl.fbaipublicfiles.com/fasttext/vectors-english/wiki-news-300d-1M-subword.vec.zip";
+          sha256 = "e5WZ7gMZP3PvJOXEbP4bOx36oUqaTBt+7PrfkVso6lU=";
+        };
 
         cargoArtifacts = craneLib.buildDepsOnly {
           src = ./.;
@@ -42,7 +34,7 @@
         package = craneLib.buildPackage {
           src = ./.;
           inherit cargoArtifacts;
-          WORD2VEC_DATA = "${glove-twitter-200d}";
+          WORD2VEC_DATA = fasttext-wiki-news-subword.out;
         };
 
       in {
