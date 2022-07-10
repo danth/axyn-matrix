@@ -44,7 +44,7 @@ async fn process_message(
             let previous_body = get_previous_body(&event, &client, &room)
                                     .await.expect("Getting previous message");
             if let Some(previous_body) = previous_body {
-                database.insert(&body.plain, previous_body).expect("Learning response");
+                database.insert(&previous_body.plain, body).expect("Learning response");
             }
         }
     }
