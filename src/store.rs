@@ -20,7 +20,7 @@ use crate::matrix_body::Body;
 use crate::vectors::{Vector, Vectors, load_vectors, VectorLoadError, utterance_to_vector};
 
 #[derive(Debug)]
-pub enum Error {
+pub enum StoreError {
     DatabaseError(sled::Error),
     SerdeError(serde_cbor::Error),
     VectorLoadError(VectorLoadError),
@@ -28,30 +28,30 @@ pub enum Error {
     MissingResponses,
     NoPromptVector
 }
-impl From<sled::Error> for Error {
-    fn from(error: sled::Error) -> Error {
-        Error::DatabaseError(error)
+impl From<sled::Error> for StoreError {
+    fn from(error: sled::Error) -> StoreError {
+        StoreError::DatabaseError(error)
     }
 }
-impl From<serde_cbor::Error> for Error {
-    fn from(error: serde_cbor::Error) -> Error {
-        Error::SerdeError(error)
+impl From<serde_cbor::Error> for StoreError {
+    fn from(error: serde_cbor::Error) -> StoreError {
+        StoreError::SerdeError(error)
     }
 }
-impl From<VectorLoadError> for Error {
-    fn from(error: VectorLoadError) -> Error {
-        Error::VectorLoadError(error)
+impl From<VectorLoadError> for StoreError {
+    fn from(error: VectorLoadError) -> StoreError {
+        StoreError::VectorLoadError(error)
     }
 }
-impl fmt::Display for Error {
+impl fmt::Display for StoreError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Error::DatabaseError(e) => write!(f, "Database error: {}", e),
-            Error::SerdeError(e) => write!(f, "Serialization/deserialization error: {}", e),
-            Error::VectorLoadError(e) => write!(f, "Error loading vectors: {}", e),
-            Error::NoResponses => write!(f, "No responses exist in the database"),
-            Error::MissingResponses => write!(f, "Responses should exist in the database, but they do not"),
-            Error::NoPromptVector => write!(f, "The prompt did not contain any words with known vectors")
+            StoreError::DatabaseError(e) => write!(f, "Database error: {}", e),
+            StoreError::SerdeError(e) => write!(f, "Serialization/deserialization error: {}", e),
+            StoreError::VectorLoadError(e) => write!(f, "Error loading vectors: {}", e),
+            StoreError::NoResponses => write!(f, "No responses exist in the database"),
+            StoreError::MissingResponses => write!(f, "Responses should exist in the database, but they do not"),
+            StoreError::NoPromptVector => write!(f, "The prompt did not contain any words with known vectors")
         }
     }
 }
@@ -77,7 +77,7 @@ pub struct ResponseStore {
     searcher_lock: Arc<RwLock<Searcher<u64>>>
 }
 impl ResponseStore {
-    pub fn load() -> Result<Self, Error> {
+    pub fn load() -> Result<Self, StoreError> {
         let vectors = load_vectors()?;
         let vectors_arc = Arc::new(vectors);
 
@@ -102,14 +102,14 @@ impl ResponseStore {
         Ok(ResponseStore { vectors: vectors_arc, database, hnsw_lock, searcher_lock })
     }
 
-    pub fn insert(&self, prompt: &str, response: Body) -> Result<(), Error> {
+    pub fn insert(&self, prompt: &str, response: Body) -> Result<(), StoreError> {
         let vector = utterance_to_vector(&self.vectors, prompt)
-            .ok_or(Error::NoPromptVector)?;
+            .ok_or(StoreError::NoPromptVector)?;
         let serialized_vector = serde_cbor::to_vec(&vector)?;
 
         self.database.fetch_and_update(serialized_vector, |serialized_responses| {
             let mut responses = match serialized_responses {
-                Some(r) => serde_cbor::from_slice::<Vec<Body>>(&r).expect("Deserializing responses"),
+                Some(r) => serde_cbor::from_slice::<Vec<Body>>(r).expect("Deserializing responses"),
                 None => Vec::new()
             };
 
@@ -121,14 +121,14 @@ impl ResponseStore {
 
         let mut hnsw = self.hnsw_lock.write().unwrap();
         let mut searcher = self.searcher_lock.write().unwrap();
-        hnsw.insert(vector.clone(), &mut searcher);
+        hnsw.insert(vector, &mut searcher);
 
         Ok(())
     }
 
-    pub fn respond(&self, prompt: &str) -> Result<Body, Error> {
+    pub fn respond(&self, prompt: &str) -> Result<Body, StoreError> {
         let vector = utterance_to_vector(&self.vectors, prompt)
-            .ok_or(Error::NoPromptVector)?;
+            .ok_or(StoreError::NoPromptVector)?;
 
         let mut neighbours = [Neighbor {
             index: !0,
@@ -140,18 +140,18 @@ impl ResponseStore {
         hnsw.nearest(&vector, 24, &mut searcher, &mut neighbours);
 
         if neighbours[0].index == !0 {
-            return Err(Error::NoResponses);
+            return Err(StoreError::NoResponses);
         }
 
         let vector = hnsw.feature(neighbours[0].index);
         let serialized_vector = serde_cbor::to_vec(&vector)?;
 
         let responses = self.database.get(&serialized_vector)?;
-        let responses = responses.ok_or(Error::MissingResponses)?;
+        let responses = responses.ok_or(StoreError::MissingResponses)?;
         let responses: Vec<Body> = serde_cbor::from_slice(&responses)?;
 
         let response = responses.choose(&mut rand::thread_rng());
-        let response = response.ok_or(Error::MissingResponses)?;
+        let response = response.ok_or(StoreError::MissingResponses)?;
 
         Ok(response.clone())
     }
