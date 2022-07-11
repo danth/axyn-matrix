@@ -31,15 +31,25 @@
           buildInputs = with pkgs; [ pkg-config openssl.dev ];
         };
 
-        package = craneLib.buildPackage {
+        packageArgs = {
           src = ./.;
           inherit cargoArtifacts;
           WORD2VEC_DATA = "${fasttext-wiki-news-subword}/wiki-news-300d-1M-subword.vec";
         };
 
+        package = craneLib.buildPackage packageArgs;
+
+        clippy = craneLib.cargoClippy (packageArgs // {
+          cargoClippyExtraArgs = "-- --deny warnings";
+        });
+
       in {
         packages.default = package;
         apps.default = utils.lib.mkApp { drv = package; };
+
+        checks = {
+          inherit clippy;
+        };
 
         devShells.default = pkgs.mkShell {
           nativeBuildInputs = with pkgs; [ cargo rustc ];
