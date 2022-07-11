@@ -7,9 +7,19 @@ use std::num;
 
 #[derive(Debug)]
 pub enum VectorLoadError {
+    MissingHeaderError,
+    HeaderLengthError,
+    ParseIntError(num::ParseIntError),
     MissingWordError,
     ParseFloatError(num::ParseFloatError),
+    WrongDimensionalityError { actual: usize, expected: usize },
+    MissingVectorsError { actual: usize, expected: usize },
     IOError(io::Error)
+}
+impl From<num::ParseIntError> for VectorLoadError {
+    fn from(error: num::ParseIntError) -> VectorLoadError {
+        VectorLoadError::ParseIntError(error)
+    }
 }
 impl From<num::ParseFloatError> for VectorLoadError {
     fn from(error: num::ParseFloatError) -> VectorLoadError {
@@ -24,8 +34,15 @@ impl From<io::Error> for VectorLoadError {
 impl fmt::Display for VectorLoadError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
+            VectorLoadError::MissingHeaderError => write!(f, "expected a header line with «number of vectors» «dimensionality»"),
+            VectorLoadError::HeaderLengthError => write!(f, "nexpected header line to be in the format «number of vectors» «dimensionality»"),
+            VectorLoadError::ParseIntError(error) => write!(f, "failed to parse header element: {}", error),
             VectorLoadError::MissingWordError => write!(f, "expected word at start of line"),
             VectorLoadError::ParseFloatError(error) => write!(f, "failed to parse vector element: {}", error),
+            VectorLoadError::WrongDimensionalityError{ actual, expected } =>
+                write!(f, "expected a vector of dimensionality {}, got {}", expected, actual),
+            VectorLoadError::MissingVectorsError{ actual, expected } =>
+                write!(f, "expected to load {} vectors, found {}", expected, actual),
             VectorLoadError::IOError(error) => write!(f, "failed to open file: {}", error)
         }
     }
@@ -34,30 +51,70 @@ impl fmt::Display for VectorLoadError {
 pub type Vector = Vec<f64>;
 pub type Vectors = HashMap<String, Vector>;
 
+fn parse_header(line: &str) -> Result<(usize, usize), VectorLoadError> {
+    let mut elements = line.split(" ");
+
+    let rows = elements
+        .next().ok_or(VectorLoadError::HeaderLengthError)?
+        .parse()?;
+
+    let dimensionality = elements
+        .next().ok_or(VectorLoadError::HeaderLengthError)?
+        .parse()?;
+
+    match elements.next() {
+        // If there is still an element in the iterator, then the header is too long
+        Some(_) => Err(VectorLoadError::HeaderLengthError),
+        None => Ok((rows, dimensionality))
+    }
+}
+
+fn parse_vector(
+    dimensionality: usize,
+    line: &str
+) -> Result<(String, Vector), VectorLoadError> {
+    let mut elements = line.split(" ");
+
+    let word = elements.next().ok_or(VectorLoadError::MissingWordError)?;
+
+    let mut vector = Vec::with_capacity(dimensionality);
+    for element in elements {
+        vector.push(element.parse()?);
+    }
+
+    if vector.len() == dimensionality {
+        Ok((word.to_string(), vector))
+    } else {
+        Err(VectorLoadError::WrongDimensionalityError {
+            actual: vector.len(),
+            expected: dimensionality
+        })
+    }
+}
+
 pub fn load_vectors() -> Result<Vectors, VectorLoadError> {
     println!("Loading vectors");
 
-    let mut vectors = HashMap::new();
-
     let file = File::open(env!("WORD2VEC_DATA"))?;
-    let reader = BufReader::new(file);
+    let mut lines = BufReader::new(file).lines();
 
-    for line in reader.lines() {
-        let line = line?;
-        let mut elements = line.split(" ");
+    let header_line = lines.next().ok_or(VectorLoadError::MissingHeaderError)??;
+    let (rows, dimensionality) = parse_header(&header_line)?;
 
-        let word = elements.next()
-            .ok_or(VectorLoadError::MissingWordError)?;
-
-        let vector: Vector = elements.map(|n| n.parse())
-            .collect::<Result<_, num::ParseFloatError>>()?;
-
-        vectors.insert(word.to_string(), vector);
+    let mut vectors = HashMap::with_capacity(rows);
+    for line in lines {
+        let (word, vector) = parse_vector(dimensionality, &line?)?;
+        vectors.insert(word, vector);
     }
 
-    // TODO: Ensure that all vectors are the same size
-
-    Ok(vectors)
+    if vectors.len() == rows {
+        Ok(vectors)
+    } else {
+        Err(VectorLoadError::MissingVectorsError {
+            actual: vectors.len(),
+            expected: rows
+        })
+    }
 }
 
 fn add_vectors(a: &mut Vector, b: &Vector) {
