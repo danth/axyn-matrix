@@ -1,6 +1,3 @@
-extern crate if_chain;
-use if_chain::if_chain;
-
 extern crate matrix_sdk;
 use matrix_sdk::Client;
 use matrix_sdk::room::Joined;
@@ -48,13 +45,13 @@ pub fn get_body_from_event(event: &OriginalSyncRoomMessageEvent) -> Option<Body>
 }
 
 pub fn get_body_from_raw(raw: &Raw<AnyRoomEvent>) -> Option<Body> {
-    if_chain! {
-        if let Ok(event) = raw.deserialize();
-        if let AnyRoomEvent::MessageLike(event) = event;
-        if let AnyMessageLikeEvent::RoomMessage(event) = event;
-        if let MessageLikeEvent::Original(event) = event;
-        then { get_body_from_event(&event.into()) }
-        else { None }
+    if let Ok(
+        AnyRoomEvent::MessageLike(
+            AnyMessageLikeEvent::RoomMessage(
+                MessageLikeEvent::Original(event)))) = raw.deserialize() {
+        get_body_from_event(&event.into())
+    } else {
+        None
     }
 }
 
