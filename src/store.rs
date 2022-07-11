@@ -134,7 +134,7 @@ impl ResponseStore {
                 let serialized_responses =
                     serde_cbor::to_vec(&responses).expect("Serializing responses");
                 Some(serialized_responses)
-            });
+            })?;
 
         let mut hnsw = self.hnsw_lock.write().unwrap();
         let mut searcher = self.searcher_lock.write().unwrap();
