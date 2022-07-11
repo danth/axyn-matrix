@@ -61,7 +61,11 @@
         };
 
         devShells.default = pkgs.mkShell {
-          nativeBuildInputs = with pkgs; [ cargo rustc ];
+          nativeBuildInputs = with pkgs; [
+            cargo
+            rustc
+            (rustfmt.override (_: { asNightly = true; }))
+          ];
         };
       }
     );

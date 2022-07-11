@@ -1,0 +1,12 @@
+edition = "2021"
+
+unstable_features = true
+
+combine_control_expr = false
+condense_wildcard_suffixes = true
+group_imports = "StdExternalCrate"
+imports_granularity = "Crate"
+imports_layout = "HorizontalVertical"
+use_field_init_shorthand = true
+use_try_shorthand = true
+wrap_comments = true

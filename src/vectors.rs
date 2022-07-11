@@ -1,9 +1,11 @@
-use std::collections::HashMap;
-use std::fmt;
-use std::fs::File;
-use std::io;
-use std::io::{BufRead, BufReader};
-use std::num;
+use std::{
+    collections::HashMap,
+    fmt,
+    fs::File,
+    io,
+    io::{BufRead, BufReader},
+    num,
+};
 
 #[derive(Debug)]
 pub enum VectorLoadError {
@@ -14,7 +16,7 @@ pub enum VectorLoadError {
     ParseFloatError(num::ParseFloatError),
     WrongDimensionality { actual: usize, expected: usize },
     MissingVectors { actual: usize, expected: usize },
-    IOError(io::Error)
+    IOError(io::Error),
 }
 impl From<num::ParseIntError> for VectorLoadError {
     fn from(error: num::ParseIntError) -> VectorLoadError {
@@ -34,16 +36,30 @@ impl From<io::Error> for VectorLoadError {
 impl fmt::Display for VectorLoadError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            VectorLoadError::MissingHeader => write!(f, "expected a header line with «number of vectors» «dimensionality»"),
-            VectorLoadError::WrongHeader => write!(f, "expected header line to be in the format «number of vectors» «dimensionality»"),
-            VectorLoadError::ParseIntError(error) => write!(f, "failed to parse header element: {}", error),
+            VectorLoadError::MissingHeader => write!(
+                f,
+                "expected a header line with «number of vectors» «dimensionality»"
+            ),
+            VectorLoadError::WrongHeader => write!(
+                f,
+                "expected header line to be in the format «number of vectors» «dimensionality»"
+            ),
+            VectorLoadError::ParseIntError(error) => {
+                write!(f, "failed to parse header element: {}", error)
+            }
             VectorLoadError::MissingWord => write!(f, "expected word at start of line"),
-            VectorLoadError::ParseFloatError(error) => write!(f, "failed to parse vector element: {}", error),
-            VectorLoadError::WrongDimensionality{ actual, expected } =>
-                write!(f, "expected a vector of dimensionality {}, got {}", expected, actual),
-            VectorLoadError::MissingVectors{ actual, expected } =>
-                write!(f, "expected to load {} vectors, found {}", expected, actual),
-            VectorLoadError::IOError(error) => write!(f, "failed to open file: {}", error)
+            VectorLoadError::ParseFloatError(error) => {
+                write!(f, "failed to parse vector element: {}", error)
+            }
+            VectorLoadError::WrongDimensionality { actual, expected } => write!(
+                f,
+                "expected a vector of dimensionality {}, got {}",
+                expected, actual
+            ),
+            VectorLoadError::MissingVectors { actual, expected } => {
+                write!(f, "expected to load {} vectors, found {}", expected, actual)
+            }
+            VectorLoadError::IOError(error) => write!(f, "failed to open file: {}", error),
         }
     }
 }
@@ -55,24 +71,23 @@ fn parse_header(line: &str) -> Result<(usize, usize), VectorLoadError> {
     let mut elements = line.split(' ');
 
     let rows = elements
-        .next().ok_or(VectorLoadError::WrongHeader)?
+        .next()
+        .ok_or(VectorLoadError::WrongHeader)?
         .parse()?;
 
     let dimensionality = elements
-        .next().ok_or(VectorLoadError::WrongHeader)?
+        .next()
+        .ok_or(VectorLoadError::WrongHeader)?
         .parse()?;
 
     match elements.next() {
         // If there is still an element in the iterator, then the header is too long
         Some(_) => Err(VectorLoadError::WrongHeader),
-        None => Ok((rows, dimensionality))
+        None => Ok((rows, dimensionality)),
     }
 }
 
-fn parse_vector(
-    dimensionality: usize,
-    line: &str
-) -> Result<(String, Vector), VectorLoadError> {
+fn parse_vector(dimensionality: usize, line: &str) -> Result<(String, Vector), VectorLoadError> {
     let mut elements = line.split(' ');
 
     let word = elements.next().ok_or(VectorLoadError::MissingWord)?;
@@ -87,7 +102,7 @@ fn parse_vector(
     } else {
         Err(VectorLoadError::WrongDimensionality {
             actual: vector.len(),
-            expected: dimensionality
+            expected: dimensionality,
         })
     }
 }
@@ -112,7 +127,7 @@ pub fn load_vectors() -> Result<Vectors, VectorLoadError> {
     } else {
         Err(VectorLoadError::MissingVectors {
             actual: vectors.len(),
-            expected: rows
+            expected: rows,
         })
     }
 }

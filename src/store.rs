@@ -1,5 +1,7 @@
-use std::fmt;
-use std::sync::{Arc, RwLock};
+use std::{
+    fmt,
+    sync::{Arc, RwLock},
+};
 
 extern crate dirs;
 
@@ -13,11 +15,12 @@ use sled::Db;
 extern crate serde_cbor;
 
 extern crate rand;
-use rand::seq::SliceRandom;
-use rand::rngs::StdRng;
+use rand::{rngs::StdRng, seq::SliceRandom};
 
-use crate::matrix_body::Body;
-use crate::vectors::{Vector, Vectors, load_vectors, VectorLoadError, utterance_to_vector};
+use crate::{
+    matrix_body::Body,
+    vectors::{load_vectors, utterance_to_vector, Vector, VectorLoadError, Vectors},
+};
 
 #[derive(Debug)]
 pub enum StoreError {
@@ -26,7 +29,7 @@ pub enum StoreError {
     VectorLoadError(VectorLoadError),
     NoResponses,
     MissingResponses,
-    NoPromptVector
+    NoPromptVector,
 }
 impl From<sled::Error> for StoreError {
     fn from(error: sled::Error) -> StoreError {
@@ -50,8 +53,12 @@ impl fmt::Display for StoreError {
             StoreError::SerdeError(e) => write!(f, "Serialization/deserialization error: {}", e),
             StoreError::VectorLoadError(e) => write!(f, "Error loading vectors: {}", e),
             StoreError::NoResponses => write!(f, "No responses exist in the database"),
-            StoreError::MissingResponses => write!(f, "Responses should exist in the database, but they do not"),
-            StoreError::NoPromptVector => write!(f, "The prompt did not contain any words with known vectors")
+            StoreError::MissingResponses => {
+                write!(f, "Responses should exist in the database, but they do not")
+            }
+            StoreError::NoPromptVector => {
+                write!(f, "The prompt did not contain any words with known vectors")
+            }
         }
     }
 }
@@ -61,7 +68,8 @@ struct Euclidean;
 impl Metric<Vector> for Euclidean {
     type Unit = u64;
     fn distance(&self, a: &Vector, b: &Vector) -> u64 {
-        a.iter().zip(b.iter())
+        a.iter()
+            .zip(b.iter())
             .map(|(&a, &b)| (a - b).powi(2))
             .sum::<f64>()
             .sqrt()
@@ -74,7 +82,7 @@ pub struct ResponseStore {
     vectors: Arc<Vectors>,
     database: Db,
     hnsw_lock: Arc<RwLock<Hnsw<Euclidean, Vector, StdRng, 12, 24>>>,
-    searcher_lock: Arc<RwLock<Searcher<u64>>>
+    searcher_lock: Arc<RwLock<Searcher<u64>>>,
 }
 impl ResponseStore {
     pub fn load() -> Result<Self, StoreError> {
@@ -99,25 +107,34 @@ impl ResponseStore {
         let hnsw_lock = Arc::new(RwLock::new(hnsw));
         let searcher_lock = Arc::new(RwLock::new(searcher));
 
-        Ok(ResponseStore { vectors: vectors_arc, database, hnsw_lock, searcher_lock })
+        Ok(ResponseStore {
+            vectors: vectors_arc,
+            database,
+            hnsw_lock,
+            searcher_lock,
+        })
     }
 
     pub fn insert(&self, prompt: &str, response: Body) -> Result<(), StoreError> {
-        let vector = utterance_to_vector(&self.vectors, prompt)
-            .ok_or(StoreError::NoPromptVector)?;
+        let vector =
+            utterance_to_vector(&self.vectors, prompt).ok_or(StoreError::NoPromptVector)?;
         let serialized_vector = serde_cbor::to_vec(&vector)?;
 
-        self.database.fetch_and_update(serialized_vector, |serialized_responses| {
-            let mut responses = match serialized_responses {
-                Some(r) => serde_cbor::from_slice::<Vec<Body>>(r).expect("Deserializing responses"),
-                None => Vec::new()
-            };
+        self.database
+            .fetch_and_update(serialized_vector, |serialized_responses| {
+                let mut responses = match serialized_responses {
+                    Some(r) => {
+                        serde_cbor::from_slice::<Vec<Body>>(r).expect("Deserializing responses")
+                    }
+                    None => Vec::new(),
+                };
 
-            responses.push(response.clone());
+                responses.push(response.clone());
 
-            let serialized_responses = serde_cbor::to_vec(&responses).expect("Serializing responses");
-            Some(serialized_responses)
-        });
+                let serialized_responses =
+                    serde_cbor::to_vec(&responses).expect("Serializing responses");
+                Some(serialized_responses)
+            });
 
         let mut hnsw = self.hnsw_lock.write().unwrap();
         let mut searcher = self.searcher_lock.write().unwrap();
@@ -127,12 +144,12 @@ impl ResponseStore {
     }
 
     pub fn respond(&self, prompt: &str) -> Result<Body, StoreError> {
-        let vector = utterance_to_vector(&self.vectors, prompt)
-            .ok_or(StoreError::NoPromptVector)?;
+        let vector =
+            utterance_to_vector(&self.vectors, prompt).ok_or(StoreError::NoPromptVector)?;
 
         let mut neighbours = [Neighbor {
             index: !0,
-            distance: !0
+            distance: !0,
         }];
 
         let hnsw = self.hnsw_lock.read().unwrap();
