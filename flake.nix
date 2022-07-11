@@ -7,11 +7,13 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
+    nix-filter.url = "github:numtide/nix-filter";
+
     utils.url = "github:numtide/flake-utils";
   };
 
   outputs =
-    { self, nixpkgs, crane, utils, ... }:
+    { self, nixpkgs, crane, nix-filter, utils, ... }:
     {
       nixosModules.axyn = import ./nixos.nix self.packages;
     } //
@@ -26,20 +28,27 @@
           sha256 = "e5WZ7gMZP3PvJOXEbP4bOx36oUqaTBt+7PrfkVso6lU=";
         };
 
-        cargoArtifacts = craneLib.buildDepsOnly {
-          src = ./.;
-          buildInputs = with pkgs; [ pkg-config openssl.dev ];
-        };
+        commonArguments = rec {
+          src = nix-filter.lib {
+            root = ./.;
+            include = with nix-filter.lib; [
+              "Cargo.toml"
+              "Cargo.lock"
+              (inDirectory "src")
+            ];
+          };
 
-        packageArgs = {
-          src = ./.;
-          inherit cargoArtifacts;
+          cargoArtifacts = craneLib.buildDepsOnly {
+            inherit src;
+            buildInputs = with pkgs; [ pkg-config openssl.dev ];
+          };
+
           WORD2VEC_DATA = "${fasttext-wiki-news-subword}/wiki-news-300d-1M-subword.vec";
         };
 
-        package = craneLib.buildPackage packageArgs;
+        package = craneLib.buildPackage commonArguments;
 
-        clippy = craneLib.cargoClippy (packageArgs // {
+        clippy = craneLib.cargoClippy (commonArguments // {
           cargoClippyExtraArgs = "-- --deny warnings";
         });
 
