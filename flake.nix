@@ -46,25 +46,20 @@
           WORD2VEC_DATA = "${fasttext-wiki-news-subword}/wiki-news-300d-1M-subword.vec";
         };
 
-        package = craneLib.buildPackage commonArguments;
+      in {
+        packages.default = craneLib.buildPackage commonArguments;
 
-        clippy = craneLib.cargoClippy (commonArguments // {
+        checks.clippy = craneLib.cargoClippy (commonArguments // {
           cargoClippyExtraArgs = "-- --deny warnings";
         });
 
-      in {
-        packages.default = package;
-        apps.default = utils.lib.mkApp { drv = package; };
-
-        checks = {
-          inherit clippy;
-        };
-
-        devShells.default = pkgs.mkShell {
-          nativeBuildInputs = with pkgs; [
+        devShells.default = with pkgs; mkShell {
+          nativeBuildInputs = [
             cargo
-            rustc
-            (rustfmt.override (_: { asNightly = true; }))
+            (writeShellScriptBin "rustfmt" ''
+              PATH=${rustfmt.override { asNightly = true; }}/bin
+              rustfmt src/*.rs
+            '')
           ];
         };
       }
