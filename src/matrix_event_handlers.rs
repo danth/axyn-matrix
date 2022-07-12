@@ -1,5 +1,8 @@
 extern crate dirs;
 
+extern crate futures;
+use futures::{join, try_join};
+
 extern crate matrix_sdk;
 use matrix_sdk::{
     config::SyncSettings,
@@ -28,7 +31,7 @@ use crate::{
     store::ResponseStore,
 };
 
-async fn send_response(body: &Body, database: &ResponseStore, room: &Joined) {
+async fn send_response(body: &Body, room: &Joined, database: &ResponseStore) {
     if let Ok(response) = database.respond(&body.plain) {
         let response_content = match response.html {
             Some(html) => RoomMessageEventContent::text_html(response.plain, html),
@@ -38,6 +41,24 @@ async fn send_response(body: &Body, database: &ResponseStore, room: &Joined) {
         room.send(response_content, None)
             .await
             .expect("Sending response");
+    }
+}
+
+async fn learn_from_message(
+    body: Body,
+    event: &OriginalSyncRoomMessageEvent,
+    client: &Client,
+    room: &Joined,
+    database: &ResponseStore,
+) {
+    let previous_body = get_previous_body(event, client, room)
+        .await
+        .expect("Getting previous message");
+
+    if let Some(previous_body) = previous_body {
+        database
+            .insert(&previous_body.plain, body)
+            .expect("Learning response");
     }
 }
 
@@ -54,16 +75,10 @@ async fn process_message(
 
     if let Room::Joined(room) = room {
         if let Some(body) = event.get_body() {
-            send_response(&body, &database, &room).await;
-
-            let previous_body = get_previous_body(&event, &client, &room)
-                .await
-                .expect("Getting previous message");
-            if let Some(previous_body) = previous_body {
-                database
-                    .insert(&previous_body.plain, body)
-                    .expect("Learning response");
-            }
+            join!(
+                send_response(&body, &room, &database),
+                learn_from_message(body.clone(), &event, &client, &room, &database),
+            );
         }
     }
 }
@@ -100,17 +115,34 @@ async fn join_on_invite(room_member: StrippedRoomMemberEvent, client: Client, ro
     }
 }
 
-async fn configure_account(account: &Account) -> anyhow::Result<()> {
+async fn set_display_name(account: &Account) -> anyhow::Result<()> {
     if account.get_display_name().await? != Some("Axyn".to_string()) {
         println!("Setting display name");
         account.set_display_name(Some("Axyn")).await?;
     }
 
+    Ok(())
+}
+
+async fn set_avatar(account: &Account) -> anyhow::Result<()> {
     if account.get_avatar_url().await? == None {
         println!("Setting avatar");
         let mut image = File::open(env!("AVATAR_PNG"))?;
         account.upload_avatar(&mime::IMAGE_PNG, &mut image).await?;
     }
+
+    Ok(())
+}
+
+async fn sync(client: &Client) -> anyhow::Result<()> {
+    client
+        .register_event_handler(process_message)
+        .await
+        .register_event_handler(join_on_invite)
+        .await;
+
+    println!("Listening for events");
+    client.sync(SyncSettings::default()).await;
 
     Ok(())
 }
@@ -138,15 +170,8 @@ pub async fn login_and_sync(
         .await?;
     println!("Connected to Matrix as {}", username);
 
-    configure_account(&client.account()).await?;
-
-    client
-        .register_event_handler(process_message)
-        .await
-        .register_event_handler(join_on_invite)
-        .await;
-
-    client.sync(SyncSettings::default()).await;
+    let account = &client.account();
+    try_join!(set_display_name(account), set_avatar(account), sync(&client))?;
 
     Ok(())
 }
