@@ -9,14 +9,19 @@ use matrix_sdk::{
         member::StrippedRoomMemberEvent,
         message::{OriginalSyncRoomMessageEvent, RoomMessageEventContent},
     },
+    Account,
     Client,
 };
 
 extern crate matrix_sdk_sled;
 use matrix_sdk_sled::make_store_config;
 
+extern crate mime;
+
 extern crate tokio;
 use tokio::time::{sleep, Duration};
+
+use std::fs::File;
 
 use crate::{
     matrix_body::{get_previous_body, Body, HasBody},
@@ -95,6 +100,21 @@ async fn join_on_invite(room_member: StrippedRoomMemberEvent, client: Client, ro
     }
 }
 
+async fn configure_account(account: &Account) -> anyhow::Result<()> {
+    if account.get_display_name().await? != Some("Axyn".to_string()) {
+        println!("Setting display name");
+        account.set_display_name(Some("Axyn")).await?;
+    }
+
+    if account.get_avatar_url().await? == None {
+        println!("Setting avatar");
+        let mut image = File::open(env!("AVATAR_PNG"))?;
+        account.upload_avatar(&mime::IMAGE_PNG, &mut image).await?;
+    }
+
+    Ok(())
+}
+
 pub async fn login_and_sync(
     homeserver_url: String,
     username: &str,
@@ -117,6 +137,8 @@ pub async fn login_and_sync(
         .login(username, password, Some(device_id), Some("Axyn"))
         .await?;
     println!("Connected to Matrix as {}", username);
+
+    configure_account(&client.account()).await?;
 
     client
         .register_event_handler(process_message)

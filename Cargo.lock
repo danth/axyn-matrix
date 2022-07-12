@@ -148,6 +148,7 @@ dependencies = [
  "lazy-regex",
  "matrix-sdk",
  "matrix-sdk-sled",
+ "mime",
  "rand 0.8.5",
  "serde",
  "serde_cbor",

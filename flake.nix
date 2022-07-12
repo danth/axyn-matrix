@@ -43,6 +43,10 @@
             buildInputs = with pkgs; [ pkg-config openssl.dev ];
           };
 
+          AVATAR_PNG = pkgs.runCommand "axyn-icon.png" {} ''
+            ${pkgs.resvg}/bin/resvg ${./images/axyn-icon.svg} $out
+          '';
+
           WORD2VEC_DATA = "${fasttext-wiki-news-subword}/wiki-news-300d-1M-subword.vec";
         };
 
