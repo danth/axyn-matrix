@@ -19,7 +19,7 @@ extern crate tokio;
 use tokio::time::{sleep, Duration};
 
 use crate::{
-    matrix_body::{get_body_from_event, get_previous_body, Body},
+    matrix_body::{get_previous_body, Body, HasBody},
     store::ResponseStore,
 };
 
@@ -48,7 +48,7 @@ async fn process_message(
     }
 
     if let Room::Joined(room) = room {
-        if let Some(body) = get_body_from_event(&event) {
+        if let Some(body) = event.get_body() {
             send_response(&body, &database, &room).await;
 
             let previous_body = get_previous_body(&event, &client, &room)

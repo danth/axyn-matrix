@@ -7,8 +7,10 @@ use matrix_sdk::{
                 FormattedBody,
                 MessageFormat,
                 MessageType,
+                OriginalRoomMessageEvent,
                 OriginalSyncRoomMessageEvent,
                 Relation,
+                RoomMessageEventContent,
                 TextMessageEventContent,
             },
             AnyMessageLikeEvent,
@@ -31,38 +33,85 @@ pub struct Body {
     pub html: Option<String>,
 }
 
-pub fn get_body_from_event(event: &OriginalSyncRoomMessageEvent) -> Option<Body> {
-    match &event.content.msgtype {
-        MessageType::Text(TextMessageEventContent {
-            formatted:
-                Some(FormattedBody {
-                    format: MessageFormat::Html,
-                    body: html,
-                }),
-            body,
-            ..
-        }) => Some(Body {
-            plain: body.to_string(),
-            html: Some(html.to_string()),
-        }),
+pub trait HasBody {
+    fn get_body(&self) -> Option<Body>;
+}
 
-        MessageType::Text(TextMessageEventContent { body, .. }) => Some(Body {
-            plain: body.to_string(),
-            html: None,
-        }),
+impl HasBody for TextMessageEventContent {
+    fn get_body(&self) -> Option<Body> {
+        match self {
+            TextMessageEventContent {
+                formatted:
+                    Some(FormattedBody {
+                        format: MessageFormat::Html,
+                        body: html,
+                    }),
+                body,
+                ..
+            } => Some(Body {
+                plain: body.to_string(),
+                html: Some(html.to_string()),
+            }),
 
-        _ => None,
+            TextMessageEventContent { body, .. } => Some(Body {
+                plain: body.to_string(),
+                html: None,
+            })
+        }
     }
 }
 
-pub fn get_body_from_raw(raw: &Raw<AnyRoomEvent>) -> Option<Body> {
-    if let Ok(AnyRoomEvent::MessageLike(AnyMessageLikeEvent::RoomMessage(
-        MessageLikeEvent::Original(event),
-    ))) = raw.deserialize()
-    {
-        get_body_from_event(&event.into())
-    } else {
-        None
+impl HasBody for OriginalRoomMessageEvent {
+    fn get_body(&self) -> Option<Body> {
+        match &self.content.msgtype {
+            MessageType::Text(content) => content.get_body(),
+            _ => None
+        }
+    }
+}
+
+impl HasBody for OriginalSyncRoomMessageEvent {
+    fn get_body(&self) -> Option<Body> {
+        match &self.content.msgtype {
+            MessageType::Text(content) => content.get_body(),
+            _ => None
+        }
+    }
+}
+
+impl HasBody for MessageLikeEvent<RoomMessageEventContent> {
+    fn get_body(&self) -> Option<Body> {
+        match self {
+            MessageLikeEvent::Original(event) => event.get_body(),
+            _ => None
+        }
+    }
+}
+
+impl HasBody for AnyMessageLikeEvent {
+    fn get_body(&self) -> Option<Body> {
+        match self {
+            AnyMessageLikeEvent::RoomMessage(event) => event.get_body(),
+            _ => None
+        }
+    }
+}
+
+impl HasBody for AnyRoomEvent {
+    fn get_body(&self) -> Option<Body> {
+        match self {
+            AnyRoomEvent::MessageLike(event) => event.get_body(),
+            _ => None
+        }
+    }
+}
+
+impl HasBody for Raw<AnyRoomEvent> {
+    fn get_body(&self) -> Option<Body> {
+        match self.deserialize() {
+            Ok(event) => event.get_body(),
+            Err(_) => None
+        }
     }
 }
 
@@ -74,7 +123,7 @@ pub async fn get_previous_body(
     // Look for explicit replies first
     if let Some(Relation::Reply { in_reply_to }) = &event.content.relates_to {
         let previous_event = room.event(&in_reply_to.event_id).await?;
-        if let Some(previous_body) = get_body_from_raw(&previous_event.event) {
+        if let Some(previous_body) = previous_event.event.get_body() {
             return Ok(Some(previous_body));
         }
     }
@@ -83,7 +132,7 @@ pub async fn get_previous_body(
     let events_before = get_events_before(event, client, room).await?;
     // We must check each event until we find one which is a text message
     for previous_event in events_before.iter() {
-        if let Some(previous_body) = get_body_from_raw(&previous_event.event) {
+        if let Some(previous_body) = previous_event.event.get_body() {
             return Ok(Some(previous_body));
         }
     }
