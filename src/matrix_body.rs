@@ -22,6 +22,9 @@ use matrix_sdk::{
     Client,
 };
 
+extern crate lazy_regex;
+use lazy_regex::{lazy_regex, Lazy, Regex};
+
 extern crate serde;
 use serde::{Deserialize, Serialize};
 
@@ -31,6 +34,18 @@ use crate::matrix_api::get_events_before;
 pub struct Body {
     pub plain: String,
     pub html: Option<String>,
+}
+
+static PLAIN_REGEX: Lazy<Regex> = lazy_regex!(r"^> <@[a-z]+:[a-z\.]+\.[a-z]+> .*\n\n");
+
+fn filter_plain(original: &str) -> String {
+    PLAIN_REGEX.replace(original, "").to_string()
+}
+
+static HTML_REGEX: Lazy<Regex> = lazy_regex!(r"^<mx-reply>.*</mx-reply>");
+
+fn filter_html(original: &str) -> String {
+    HTML_REGEX.replace(original, "").to_string()
 }
 
 pub trait HasBody {
@@ -49,12 +64,12 @@ impl HasBody for TextMessageEventContent {
                 body,
                 ..
             } => Some(Body {
-                plain: body.to_string(),
-                html: Some(html.to_string()),
+                plain: filter_plain(body),
+                html: Some(filter_html(html)),
             }),
 
             TextMessageEventContent { body, .. } => Some(Body {
-                plain: body.to_string(),
+                plain: filter_plain(body),
                 html: None,
             })
         }
