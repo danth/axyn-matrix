@@ -91,6 +91,7 @@ async fn process_message(
             send_response(&body, &room, &database).await?;
             learn_from_message(body, &event, &client, &room, &database).await?;
         }
+        room.read_receipt(&event.event_id).await?;
     }
 
     Ok(())
