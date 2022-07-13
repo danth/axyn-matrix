@@ -88,9 +88,12 @@ async fn process_message(
 
     if let Room::Joined(room) = room {
         if let Some(body) = event.get_body() {
-            send_response(&body, &room, &database).await?;
-            learn_from_message(body, &event, &client, &room, &database).await?;
+            try_join!(
+                send_response(&body, &room, &database),
+                learn_from_message(body.clone(), &event, &client, &room, &database),
+            )?;
         }
+
         room.read_receipt(&event.event_id).await?;
     }
 
