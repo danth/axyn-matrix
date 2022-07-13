@@ -17,8 +17,11 @@ space = "^0.17"  # Must be the same version of Space as used by HNSW
 # Randomisation
 rand = "^0.8"
 
-# Matrix client
+# Errors
 anyhow = "^1.0"
+quick-error = "^2.0"
+
+# Matrix client
 matrix-sdk = "^0.5"
 matrix-sdk-sled = "^0.1"
 mime = "^0.3"

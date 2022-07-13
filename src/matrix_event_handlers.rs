@@ -1,7 +1,7 @@
 extern crate dirs;
 
 extern crate futures;
-use futures::{join, try_join};
+use futures::try_join;
 
 extern crate matrix_sdk;
 use matrix_sdk::{
@@ -21,6 +21,9 @@ use matrix_sdk_sled::make_store_config;
 
 extern crate mime;
 
+extern crate quick_error;
+use quick_error::quick_error;
+
 extern crate tokio;
 use tokio::time::{sleep, Duration};
 
@@ -31,17 +34,29 @@ use crate::{
     store::ResponseStore,
 };
 
-async fn send_response(body: &Body, room: &Joined, database: &ResponseStore) {
+quick_error! {
+    #[derive(Debug)]
+    pub enum HandlerError {
+        NoHomeDir {
+            display("failed to find home directory (for database and Matrix state)")
+        }
+        NoOwnUserId {
+            display("failed to fetch own user ID")
+        }
+    }
+}
+
+async fn send_response(body: &Body, room: &Joined, database: &ResponseStore) -> anyhow::Result<()> {
     if let Ok(response) = database.respond(&body.plain) {
         let response_content = match response.html {
             Some(html) => RoomMessageEventContent::text_html(response.plain, html),
             None => RoomMessageEventContent::text_plain(response.plain),
         };
 
-        room.send(response_content, None)
-            .await
-            .expect("Sending response");
+        room.send(response_content, None).await?;
     }
+
+    Ok(())
 }
 
 async fn learn_from_message(
@@ -50,16 +65,14 @@ async fn learn_from_message(
     client: &Client,
     room: &Joined,
     database: &ResponseStore,
-) {
-    let previous_body = get_previous_body(event, client, room)
-        .await
-        .expect("Getting previous message");
+) -> anyhow::Result<()> {
+    let previous_body = get_previous_body(event, client, room).await?;
 
     if let Some(previous_body) = previous_body {
-        database
-            .insert(&previous_body.plain, body)
-            .expect("Learning response");
+        database.insert(&previous_body.plain, body)?;
     }
+
+    Ok(())
 }
 
 async fn process_message(
@@ -67,26 +80,26 @@ async fn process_message(
     client: Client,
     room: Room,
     Ctx(database): Ctx<ResponseStore>,
-) {
+) -> anyhow::Result<()> {
     // Don't respond to our own messages
-    if event.sender == client.user_id().await.expect("Retrieving own user ID") {
-        return;
+    if event.sender == client.user_id().await.ok_or(HandlerError::NoOwnUserId)? {
+        return Ok(());
     }
 
     if let Room::Joined(room) = room {
         if let Some(body) = event.get_body() {
-            join!(
-                send_response(&body, &room, &database),
-                learn_from_message(body.clone(), &event, &client, &room, &database),
-            );
+            send_response(&body, &room, &database).await?;
+            learn_from_message(body, &event, &client, &room, &database).await?;
         }
     }
+
+    Ok(())
 }
 
-async fn join_on_invite(room_member: StrippedRoomMemberEvent, client: Client, room: Room) {
+async fn join_on_invite(room_member: StrippedRoomMemberEvent, client: Client, room: Room) -> anyhow::Result<()> {
     // Only respond to invites for ourself
-    if room_member.state_key != client.user_id().await.expect("Retrieving own user ID") {
-        return;
+    if room_member.state_key != client.user_id().await.ok_or(HandlerError::NoOwnUserId)? {
+        return Ok(());
     }
 
     if let Room::Invited(room) = room {
@@ -106,13 +119,14 @@ async fn join_on_invite(room_member: StrippedRoomMemberEvent, client: Client, ro
             delay *= 2;
 
             if delay > 3600 {
-                eprintln!("Couldn't join room {}: {}", room.room_id(), err);
-                return;
+                return Err(err.into());
             }
         }
 
         println!("Successfully joined room {}", room.room_id());
     }
+
+    Ok(())
 }
 
 async fn set_display_name(account: &Account) -> anyhow::Result<()> {
@@ -153,7 +167,7 @@ pub async fn login_and_sync(
     password: &str,
     device_id: &str,
 ) -> anyhow::Result<()> {
-    let path = dirs::home_dir().expect("Finding home directory");
+    let path = dirs::home_dir().ok_or(HandlerError::NoHomeDir)?;
     let store_config = make_store_config(path, None)?;
 
     let client = Client::builder()
@@ -162,7 +176,7 @@ pub async fn login_and_sync(
         .build()
         .await?;
 
-    let database = ResponseStore::load().expect("Loading store");
+    let database = ResponseStore::load()?;
     client.register_event_handler_context(database);
 
     client

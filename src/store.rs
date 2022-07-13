@@ -1,5 +1,4 @@
 use std::{
-    fmt,
     sync::{Arc, RwLock},
 };
 
@@ -9,6 +8,9 @@ extern crate hnsw;
 use hnsw::{Hnsw, Searcher};
 extern crate space;
 use space::{Metric, Neighbor};
+
+extern crate quick_error;
+use quick_error::quick_error;
 
 extern crate sled;
 use sled::Db;
@@ -22,43 +24,32 @@ use crate::{
     vectors::{load_vectors, utterance_to_vector, Vector, VectorLoadError, Vectors},
 };
 
-#[derive(Debug)]
-pub enum StoreError {
-    DatabaseError(sled::Error),
-    SerdeError(serde_cbor::Error),
-    VectorLoadError(VectorLoadError),
-    NoResponses,
-    MissingResponses,
-    NoPromptVector,
-}
-impl From<sled::Error> for StoreError {
-    fn from(error: sled::Error) -> StoreError {
-        StoreError::DatabaseError(error)
-    }
-}
-impl From<serde_cbor::Error> for StoreError {
-    fn from(error: serde_cbor::Error) -> StoreError {
-        StoreError::SerdeError(error)
-    }
-}
-impl From<VectorLoadError> for StoreError {
-    fn from(error: VectorLoadError) -> StoreError {
-        StoreError::VectorLoadError(error)
-    }
-}
-impl fmt::Display for StoreError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            StoreError::DatabaseError(e) => write!(f, "Database error: {}", e),
-            StoreError::SerdeError(e) => write!(f, "Serialization/deserialization error: {}", e),
-            StoreError::VectorLoadError(e) => write!(f, "Error loading vectors: {}", e),
-            StoreError::NoResponses => write!(f, "No responses exist in the database"),
-            StoreError::MissingResponses => {
-                write!(f, "Responses should exist in the database, but they do not")
-            }
-            StoreError::NoPromptVector => {
-                write!(f, "The prompt did not contain any words with known vectors")
-            }
+quick_error! {
+    #[derive(Debug)]
+    pub enum StoreError {
+        DatabaseError(error: sled::Error) {
+            from(error: sled::Error) -> (error)
+            source(error)
+            display("database error: {}", error)
+        }
+        SerdeError(error: serde_cbor::Error) {
+            from(error: serde_cbor::Error) -> (error)
+            source(error)
+            display("(de)serialization error: {}", error)
+        }
+        VectorLoadError(error: VectorLoadError) {
+            from(error: VectorLoadError) -> (error)
+            source(error)
+            display("error loading vectors: {}", error)
+        }
+        NoResponses {
+            display("no responses exist in the database")
+        }
+        MissingResponses {
+            display("responses should exist in the database, but they do not")
+        }
+        NoPromptVector {
+            display("the prompt did not contain any words with known vectors")
         }
     }
 }
