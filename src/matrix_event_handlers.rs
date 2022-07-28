@@ -21,9 +21,6 @@ use matrix_sdk_sled::make_store_config;
 
 extern crate mime;
 
-extern crate quick_error;
-use quick_error::quick_error;
-
 extern crate tokio;
 use tokio::time::{sleep, Duration};
 
@@ -33,18 +30,6 @@ use crate::{
     matrix_body::{get_previous_body, Body, HasBody},
     store::ResponseStore,
 };
-
-quick_error! {
-    #[derive(Debug)]
-    pub enum HandlerError {
-        NoHomeDir {
-            display("failed to find home directory (for database and Matrix state)")
-        }
-        NoOwnUserId {
-            display("failed to fetch own user ID")
-        }
-    }
-}
 
 async fn send_response(body: &Body, room: &Joined, database: &ResponseStore) -> anyhow::Result<()> {
     if let Ok(response) = database.respond(&body.plain) {
@@ -80,37 +65,40 @@ async fn process_message(
     client: Client,
     room: Room,
     Ctx(database): Ctx<ResponseStore>,
-) -> anyhow::Result<()> {
+) {
     // Don't respond to our own messages
-    if event.sender == client.user_id().await.ok_or(HandlerError::NoOwnUserId)? {
-        return Ok(());
+    if event.sender == client.user_id().await.expect("Getting own user ID") {
+        return;
     }
 
     if let Room::Joined(room) = room {
         if let Some(body) = event.get_body() {
-            try_join!(
-                send_response(&body, &room, &database),
-                learn_from_message(body.clone(), &event, &client, &room, &database),
-            )?;
+            if let Err(error) = send_response(&body, &room, &database).await {
+                eprintln!("Error sending response: {}", error);
+            }
+
+            if let Err(error) = learn_from_message(body.clone(), &event, &client, &room, &database).await {
+                eprintln!("Error learning from message: {}", error);
+            }
         }
 
-        room.read_receipt(&event.event_id).await?;
+        if let Err(error) = room.read_receipt(&event.event_id).await {
+            eprintln!("Error setting read receipt: {}", error);
+        }
     }
-
-    Ok(())
 }
 
-async fn join_on_invite(room_member: StrippedRoomMemberEvent, client: Client, room: Room) -> anyhow::Result<()> {
+async fn join_on_invite(room_member: StrippedRoomMemberEvent, client: Client, room: Room) {
     // Only respond to invites for ourself
-    if room_member.state_key != client.user_id().await.ok_or(HandlerError::NoOwnUserId)? {
-        return Ok(());
+    if room_member.state_key != client.user_id().await.expect("Getting own user ID") {
+        return;
     }
 
     if let Room::Invited(room) = room {
         println!("Joining room {}", room.room_id());
 
         let mut delay = 2;
-        while let Err(err) = room.accept_invitation().await {
+        while let Err(error) = room.accept_invitation().await {
             // Retry joining due to https://github.com/matrix-org/synapse/issues/4345
 
             eprintln!(
@@ -123,14 +111,12 @@ async fn join_on_invite(room_member: StrippedRoomMemberEvent, client: Client, ro
             delay *= 2;
 
             if delay > 3600 {
-                return Err(err.into());
+                eprintln!("Failed to join room {}: {}", room.room_id(), error);
             }
         }
 
         println!("Successfully joined room {}", room.room_id());
     }
-
-    Ok(())
 }
 
 async fn set_display_name(account: &Account) -> anyhow::Result<()> {
@@ -171,7 +157,7 @@ pub async fn login_and_sync(
     password: &str,
     device_id: &str,
 ) -> anyhow::Result<()> {
-    let path = dirs::home_dir().ok_or(HandlerError::NoHomeDir)?;
+    let path = dirs::home_dir().expect("Finding home directory");
     let store_config = make_store_config(path, None)?;
 
     let client = Client::builder()
